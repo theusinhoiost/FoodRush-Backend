@@ -2,9 +2,23 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
     editable: true
 
+  - name: PostgreSQL
+    uid: postgres
+    type: postgres
+    url: postgres:5432
+    user: postgres
+    secureJsonData:
+      password: postgres
+    jsonData:
+      database: foodrush_db
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false
+    editable: true

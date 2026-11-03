@@ -27,4 +27,6 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, UUID> {
   List<Restaurant> findAllByIsOpenTrue();
 
   List<Restaurant> findAllByOwnerId(UUID ownerId);
+
+  long countByIsOpen(Boolean isOpen);
 }

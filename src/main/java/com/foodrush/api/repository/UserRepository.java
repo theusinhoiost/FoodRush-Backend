@@ -1,5 +1,6 @@
 package com.foodrush.api.repository;
 
+import com.foodrush.api.enums.RoleType;
 import com.foodrush.api.model.User;
 import java.util.List;
 import java.util.Optional;
@@ -29,4 +30,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
   boolean existsByCpf(String cpf);
 
   boolean existsByPhone(String phone);
+
+  long countByRole(RoleType role);
+
+  long countByActive(Boolean active);
 }

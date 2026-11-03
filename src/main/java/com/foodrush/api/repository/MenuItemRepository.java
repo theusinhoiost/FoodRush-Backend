@@ -18,9 +18,14 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, UUID> {
   @Query(
     "SELECT DISTINCT m FROM MenuItem m " +
       "LEFT JOIN FETCH m.sizes " +
-      "LEFT JOIN FETCH m.complementGroups cg " +
-      "LEFT JOIN FETCH cg.items " +
       "WHERE m.id = :id AND m.available = true"
   )
-  Optional<MenuItem> findByIdWithDetails(@Param("id") UUID id);
+  Optional<MenuItem> findByIdWithSizes(@Param("id") UUID id);
+
+  @Query(
+    "SELECT DISTINCT m FROM MenuItem m " +
+      "LEFT JOIN FETCH m.complementGroups cg " +
+      "WHERE m.id = :id AND m.available = true"
+  )
+  Optional<MenuItem> findByIdWithComplements(@Param("id") UUID id);
 }

@@ -2,7 +2,9 @@ package com.foodrush.api.controller;
 
 import com.foodrush.api.dto.request.RestaurantPatchRequestDTO;
 import com.foodrush.api.dto.request.RestaurantRequestDTO;
+import com.foodrush.api.dto.response.DeliveryFeeEstimateResponseDTO;
 import com.foodrush.api.dto.response.RestaurantResponseDTO;
+import com.foodrush.api.service.DeliveryCalculationService;
 import com.foodrush.api.service.RestaurantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -30,9 +33,14 @@ import org.springframework.web.bind.annotation.*;
 public class RestaurantController {
 
   private final RestaurantService restaurantService;
+  private final DeliveryCalculationService deliveryCalculationService;
 
-  public RestaurantController(RestaurantService restaurantService) {
+  public RestaurantController(
+      RestaurantService restaurantService,
+      DeliveryCalculationService deliveryCalculationService
+  ) {
     this.restaurantService = restaurantService;
+    this.deliveryCalculationService = deliveryCalculationService;
   }
 
   @PostMapping
@@ -283,5 +291,79 @@ public class RestaurantController {
   ) {
     RestaurantResponseDTO updated = restaurantService.toggleOpenStatus(id);
     return ResponseEntity.ok(updated);
+  }
+
+  @GetMapping("/nearby")
+  @Operation(
+      summary = "Find nearby restaurants",
+      description = "Searches for restaurants located within a specified radius (in kilometers) using the Haversine distance formula based on the client's geographic coordinates."
+  )
+  @ApiResponses(
+      value = {
+          @ApiResponse(
+              responseCode = "200",
+              description = "List of restaurants within the delivery radius",
+              content = @Content(
+                  mediaType = "application/json",
+                  array = @ArraySchema(schema = @Schema(implementation = RestaurantResponseDTO.class))
+              )
+          ),
+          @ApiResponse(
+              responseCode = "400",
+              description = "Missing or invalid latitude/longitude parameters",
+              content = @Content(
+                  mediaType = "application/problem+json",
+                  schema = @Schema(implementation = ProblemDetail.class)
+              )
+          ),
+      }
+  )
+  public ResponseEntity<List<RestaurantResponseDTO>> findNearby(
+      @Parameter(description = "Customer latitude", example = "-23.550520", required = true)
+      @RequestParam BigDecimal lat,
+      @Parameter(description = "Customer longitude", example = "-46.633308", required = true)
+      @RequestParam BigDecimal lon,
+      @Parameter(description = "Maximum search radius in kilometers (default 10km)", example = "10.0")
+      @RequestParam(defaultValue = "10.0") double radiusKm
+  ) {
+    List<RestaurantResponseDTO> nearby = deliveryCalculationService.findNearbyRestaurants(lat, lon, radiusKm);
+    return ResponseEntity.ok(nearby);
+  }
+
+  @GetMapping("/{id}/delivery-estimate")
+  @Operation(
+      summary = "Estimate delivery fee and duration",
+      description = "Calculates the dynamic delivery fee and estimated transit time from the restaurant to the customer's coordinates using Haversine great-circle distance."
+  )
+  @ApiResponses(
+      value = {
+          @ApiResponse(
+              responseCode = "200",
+              description = "Delivery estimate calculated successfully",
+              content = @Content(
+                  mediaType = "application/json",
+                  schema = @Schema(implementation = DeliveryFeeEstimateResponseDTO.class)
+              )
+          ),
+          @ApiResponse(
+              responseCode = "422",
+              description = "Restaurant not found or coordinates missing",
+              content = @Content(
+                  mediaType = "application/problem+json",
+                  schema = @Schema(implementation = ProblemDetail.class)
+              )
+          ),
+      }
+  )
+  public ResponseEntity<DeliveryFeeEstimateResponseDTO> estimateDelivery(
+      @Parameter(description = "Unique UUID of the restaurant", required = true)
+      @PathVariable UUID id,
+      @Parameter(description = "Customer destination latitude", example = "-23.561684", required = true)
+      @RequestParam BigDecimal lat,
+      @Parameter(description = "Customer destination longitude", example = "-46.655981", required = true)
+      @RequestParam BigDecimal lon
+  ) {
+    DeliveryFeeEstimateResponseDTO estimate = deliveryCalculationService.estimateForRestaurant(id, lat, lon);
+    return ResponseEntity.ok(estimate);
   }
 }
