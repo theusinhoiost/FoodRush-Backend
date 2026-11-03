@@ -37,6 +37,15 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ProblemDetail handleAccessDeniedException(org.springframework.security.access.AccessDeniedException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN, ex.getMessage() != null ? ex.getMessage() : "Você não possui permissão para acessar ou modificar este recurso.");
+        problemDetail.setTitle("Acesso Negado");
+        problemDetail.setType(URI.create("https://api.foodrush.com/errors/forbidden"));
+        return problemDetail;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
@@ -56,9 +65,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGenericException(Exception ex) {
-        log.error("Erro inesperado processando requisição:", ex);
+        log.error("Erro inesperado processando requisição: ", ex);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.INTERNAL_SERVER_ERROR, "Ocorreu um erro interno inesperado no servidor.");
+                HttpStatus.INTERNAL_SERVER_ERROR, "Ocorreu um erro interno: " + ex.getClass().getSimpleName() + " - " + ex.getMessage());
         problemDetail.setTitle("Erro Interno");
         problemDetail.setType(URI.create("https://api.foodrush.com/errors/internal-server-error"));
         return problemDetail;

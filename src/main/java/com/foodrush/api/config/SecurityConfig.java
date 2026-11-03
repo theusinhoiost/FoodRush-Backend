@@ -2,10 +2,12 @@ package com.foodrush.api.config;
 
 import com.foodrush.api.security.JwtAuthenticationFilter;
 import com.foodrush.api.security.JwtTokenProvider;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,6 +18,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
@@ -51,26 +56,47 @@ public class SecurityConfig {
   }
 
   @Bean
+  public CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOriginPatterns(
+      List.of("http://localhost:*", "http://127.0.0.1:*")
+    );
+    configuration.setAllowedMethods(
+      List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+    );
+    configuration.setAllowedHeaders(List.of("*"));
+    configuration.setAllowCredentials(true);
+
+    UrlBasedCorsConfigurationSource source =
+      new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
+  }
+
+  @Bean
   public SecurityFilterChain securityFilterChain(HttpSecurity http)
     throws Exception {
     http
+      .cors(Customizer.withDefaults())
       .csrf(csrf -> csrf.disable())
       .sessionManagement(session ->
         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
       )
       .authorizeHttpRequests(auth ->
         auth
-          // Rotas públicas de autenticação (com e sem prefixo /api/v1 por conta do context-path)
+          // 1. Rotas públicas de autenticação
           .requestMatchers("/auth/**", "/api/v1/auth/**", "/error")
           .permitAll()
-          // Consulta pública de restaurantes (GET)
+          // 2. Consulta pública de restaurantes e cardápios (GET)
           .requestMatchers(
             HttpMethod.GET,
             "/restaurants/**",
-            "/api/v1/restaurants/**"
+            "/api/v1/restaurants/**",
+            "/menu-items/**",
+            "/api/v1/menu-items/**"
           )
           .permitAll()
-          // Liberações do Swagger / OpenAPI
+          // 3. Liberações do Swagger / OpenAPI
           .requestMatchers(
             "/v3/api-docs/**",
             "/swagger-ui/**",
@@ -79,10 +105,42 @@ public class SecurityConfig {
             "/docs/**"
           )
           .permitAll()
-          // Endpoints de métricas e saúde (Actuator / Prometheus)
+          // 4. Endpoints de métricas e saúde (Actuator / Prometheus)
           .requestMatchers("/actuator/**", "/api/v1/actuator/**")
           .permitAll()
-          // Qualquer outra rota exige autenticação com Bearer Token
+          // 5. Gestão de Restaurantes e Cardápios (Restaurante ou Admin)
+          .requestMatchers(
+            HttpMethod.POST,
+            "/restaurants/**",
+            "/api/v1/restaurants/**"
+          )
+          .hasAnyRole("RESTAURANT", "ADMIN")
+          .requestMatchers(
+            HttpMethod.PUT,
+            "/restaurants/**",
+            "/api/v1/restaurants/**"
+          )
+          .hasAnyRole("RESTAURANT", "ADMIN")
+          .requestMatchers(
+            HttpMethod.PATCH,
+            "/restaurants/**",
+            "/api/v1/restaurants/**",
+            "/menu-items/**",
+            "/api/v1/menu-items/**"
+          )
+          .hasAnyRole("RESTAURANT", "ADMIN")
+          .requestMatchers(
+            HttpMethod.DELETE,
+            "/menu-items/**",
+            "/api/v1/menu-items/**"
+          )
+          .hasAnyRole("RESTAURANT", "ADMIN")
+          // 6. Fluxo de Pedidos (Criar pedido = CLIENT / Atualizar status = RESTAURANT, COURIER, ADMIN)
+          .requestMatchers(HttpMethod.POST, "/orders/**", "/api/v1/orders/**")
+          .hasRole("CLIENT")
+          .requestMatchers(HttpMethod.PATCH, "/orders/**", "/api/v1/orders/**")
+          .hasAnyRole("RESTAURANT", "COURIER", "ADMIN")
+          // 7. Qualquer outra rota exige estar autenticado
           .anyRequest()
           .authenticated()
       )
