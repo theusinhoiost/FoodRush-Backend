@@ -149,6 +149,12 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
+<!-- OpenCageData  -->
+<dependency>
+    <groupId>com.opencagedata</groupId>
+    <artifactId>jopencage</artifactId>
+    <version>3.0.0</version>
+</dependency>
 	</dependencies>
 
 	<build>

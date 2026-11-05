@@ -2,10 +2,15 @@ package com.foodrush.api.config;
 
 import com.foodrush.api.security.JwtAuthenticationFilter;
 import com.foodrush.api.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -16,7 +21,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -74,11 +81,52 @@ public class SecurityConfig {
   }
 
   @Bean
+  public AuthenticationEntryPoint authenticationEntryPoint() {
+    return (request, response, authException) -> {
+      response.setStatus(HttpStatus.UNAUTHORIZED.value());
+      response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+      response.setCharacterEncoding("UTF-8");
+
+      ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+        HttpStatus.UNAUTHORIZED,
+        "Token de autenticação ausente ou inválido. Faça login para acessar este recurso."
+      );
+      problemDetail.setTitle("Não Autorizado");
+      problemDetail.setType(URI.create("https://api.foodrush.com/errors/unauthorized"));
+
+      new ObjectMapper().writeValue(response.getOutputStream(), problemDetail);
+    };
+  }
+
+  @Bean
+  public AccessDeniedHandler accessDeniedHandler() {
+    return (request, response, accessDeniedException) -> {
+      response.setStatus(HttpStatus.FORBIDDEN.value());
+      response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+      response.setCharacterEncoding("UTF-8");
+
+      ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+        HttpStatus.FORBIDDEN,
+        "Você não possui o papel ou permissão necessária para acessar este recurso."
+      );
+      problemDetail.setTitle("Acesso Negado");
+      problemDetail.setType(URI.create("https://api.foodrush.com/errors/forbidden"));
+
+      new ObjectMapper().writeValue(response.getOutputStream(), problemDetail);
+    };
+  }
+
+  @Bean
   public SecurityFilterChain securityFilterChain(HttpSecurity http)
     throws Exception {
     http
       .cors(Customizer.withDefaults())
       .csrf(csrf -> csrf.disable())
+      .exceptionHandling(exceptions ->
+        exceptions
+          .authenticationEntryPoint(authenticationEntryPoint())
+          .accessDeniedHandler(accessDeniedHandler())
+      )
       .sessionManagement(session ->
         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
       )
@@ -87,13 +135,19 @@ public class SecurityConfig {
           // 1. Rotas públicas de autenticação
           .requestMatchers("/auth/**", "/api/v1/auth/**", "/error")
           .permitAll()
-          // 2. Consulta pública de restaurantes e cardápios (GET)
+          // 2. Consulta pública de restaurantes, cardápios e geocodificação de endereços
           .requestMatchers(
             HttpMethod.GET,
             "/restaurants/**",
             "/api/v1/restaurants/**",
             "/menu-items/**",
             "/api/v1/menu-items/**"
+          )
+          .permitAll()
+          .requestMatchers(
+            HttpMethod.POST,
+            "/addresses/geocode",
+            "/api/v1/addresses/geocode"
           )
           .permitAll()
           // 3. Liberações do Swagger / OpenAPI
