@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **OpenCage Geocoder Integration & Address Endpoints (`service/GeocodingService`, `service/AddressService`, `controller/AddressController`, `dto/response/AddressResponseDTO`):**
+  - Integrated **OpenCage Geocoder (`jopencage` 3.0.0)** in `GeocodingService` to resolve exact street-level geographic coordinates (`latitude` and `longitude`) from Brazilian postal codes (CEP) and street numbers, with automatic fallback to **BrasilAPI CEP v2** coordinates.
+  - Added `opencage.api.key` configuration property in `application.yml` (`${OPENCAGE_API_KEY:}`) and documented `OPENCAGE_API_KEY` in `.env.example`.
+  - Enriched `AddressResponseDTO` with:
+    - `formattedAddress`: complete human-readable address string for user display.
+    - `mapUrl`: direct link to view the exact location on Google Maps.
+    - `openStreetMapUrl`: direct link to view the exact location on OpenStreetMap.
+  - Created `AddressService` and `AddressController` (`/api/v1/addresses`) exposing endpoints to list addresses (`GET /addresses`), get address by ID (`GET /addresses/{id}`), create/save a geocoded address (`POST /addresses`), and preview geocoded coordinates and map links (`POST /addresses/geocode`).
+  - Added unit test suite `AddressAndGeocodingTest` covering OpenCage coordinate resolution, formatted address generation, and map visualization URLs.
 - **Multi-Tenant Ownership Verification & Forbidden Exception Handling (`service/MenuService`, `controller/MenuController`, `exception/GlobalExceptionHandler`):**
   - Implemented `validateRestaurantOwnership` verifying that the authenticated user (`principal.getName()`) is the true owner of the restaurant or holds `ROLE_ADMIN` before allowing creation, availability toggles, or deletion of menu dishes.
   - Added centralized handler for `AccessDeniedException` in `GlobalExceptionHandler` returning RFC 7807 **`403 Forbidden`** (`https://api.foodrush.com/errors/forbidden`).
