@@ -3,11 +3,14 @@ package com.foodrush.api.service;
 import com.foodrush.api.dto.request.AddressRequestDTO;
 import com.foodrush.api.exception.BusinessException;
 import com.foodrush.api.model.Address;
+import com.opencagedata.jopencage.JOpenCageGeocoder;
+import com.opencagedata.jopencage.model.JOpenCageForwardRequest;
+import com.opencagedata.jopencage.model.JOpenCageLatLng;
+import com.opencagedata.jopencage.model.JOpenCageResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import org.springframework.core.ParameterizedTypeReference;
-import java.util.List;
-import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -16,15 +19,34 @@ import org.springframework.web.client.RestClientException;
 public class GeocodingService {
 
   private final RestClient restClient;
+  private final JOpenCageGeocoder jOpenCageGeocoder;
 
-  public GeocodingService() {
+  @Autowired
+  public GeocodingService(
+    @Value("${opencage.api.key:}") String openCageApiKey
+  ) {
     this.restClient = RestClient.builder()
       .defaultHeader("User-Agent", "FoodRushAPI/1.0")
       .build();
+    this.jOpenCageGeocoder = (openCageApiKey != null && !openCageApiKey.isBlank())
+      ? new JOpenCageGeocoder(openCageApiKey)
+      : null;
+  }
+
+  public GeocodingService() {
+    this("");
   }
 
   public GeocodingService(RestClient restClient) {
+    this(restClient, null);
+  }
+
+  public GeocodingService(
+    RestClient restClient,
+    JOpenCageGeocoder jOpenCageGeocoder
+  ) {
     this.restClient = restClient;
+    this.jOpenCageGeocoder = jOpenCageGeocoder;
   }
 
   public Address resolveAddress(AddressRequestDTO dto) {
@@ -35,7 +57,20 @@ public class GeocodingService {
     BigDecimal latitude = null;
     BigDecimal longitude = null;
 
-    if (
+    // 1. Prioritize OpenCage Geocoder for exact street + number coordinate resolution when configured
+    BigDecimal[] openCageCoords = fetchCoordinatesFromOpenCage(
+      cepData.street(),
+      dto.number(),
+      cepData.neighborhood(),
+      cepData.city(),
+      cepData.state(),
+      cleanCep
+    );
+
+    if (openCageCoords != null) {
+      latitude = openCageCoords[0];
+      longitude = openCageCoords[1];
+    } else if (
       cepData.location() != null &&
       cepData.location().coordinates() != null &&
       cepData.location().coordinates().latitude() != null &&
@@ -43,6 +78,7 @@ public class GeocodingService {
       !cepData.location().coordinates().latitude().isBlank() &&
       !cepData.location().coordinates().longitude().isBlank()
     ) {
+      // 2. Fallback to BrasilAPI CEP v2 coordinates
       latitude = new BigDecimal(
         cepData.location().coordinates().latitude()
       ).setScale(6, RoundingMode.HALF_UP);
@@ -50,19 +86,8 @@ public class GeocodingService {
         cepData.location().coordinates().longitude()
       ).setScale(6, RoundingMode.HALF_UP);
     } else {
-      BigDecimal[] coords = fetchCoordinatesFromNominatim(
-        cepData.street(),
-        dto.number(),
-        cepData.city(),
-        cepData.state()
-      );
-      if (coords != null) {
-        latitude = coords[0];
-        longitude = coords[1];
-      } else {
-        latitude = BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP);
-        longitude = BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP);
-      }
+      latitude = BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP);
+      longitude = BigDecimal.ZERO.setScale(6, RoundingMode.HALF_UP);
     }
 
     return Address.builder()
@@ -101,43 +126,56 @@ public class GeocodingService {
     }
   }
 
-  private BigDecimal[] fetchCoordinatesFromNominatim(
+  private BigDecimal[] fetchCoordinatesFromOpenCage(
     String street,
     String number,
+    String neighborhood,
     String city,
-    String state
+    String state,
+    String cep
   ) {
+    if (jOpenCageGeocoder == null) {
+      return null;
+    }
     try {
       String query = String.format(
-        "%s, %s, %s, %s, Brazil",
+        "%s, %s, %s, %s - %s, %s, Brazil",
         street != null ? street : "",
         number != null ? number : "",
+        neighborhood != null ? neighborhood : "",
         city != null ? city : "",
-        state != null ? state : ""
+        state != null ? state : "",
+        cep != null ? cep : ""
       );
 
-      List<Map<String, Object>> results = restClient
-        .get()
-        .uri(
-          "https://nominatim.openstreetmap.org/search?format=json&limit=1&q={q}",
-          query
-        )
-        .retrieve()
-        .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+      JOpenCageForwardRequest request = new JOpenCageForwardRequest(query);
+      request.setRestrictToCountryCode("br");
+      request.setLanguage("pt");
+      request.setLimit(1);
+      request.setNoAnnotations(false);
 
-      if (results != null && !results.isEmpty()) {
-        Map<String, Object> first = results.getFirst();
-        Object latObj = first.get("lat");
-        Object lonObj = first.get("lon");
-        if (latObj != null && lonObj != null) {
+      JOpenCageResponse response = jOpenCageGeocoder.forward(request);
+      if (response != null) {
+        JOpenCageLatLng firstPosition = response.getFirstPosition();
+        if (
+          firstPosition != null &&
+          firstPosition.getLat() != null &&
+          firstPosition.getLng() != null
+        ) {
           return new BigDecimal[] {
-            new BigDecimal(latObj.toString()).setScale(6, RoundingMode.HALF_UP),
-            new BigDecimal(lonObj.toString()).setScale(6, RoundingMode.HALF_UP),
+            BigDecimal.valueOf(firstPosition.getLat()).setScale(
+              6,
+              RoundingMode.HALF_UP
+            ),
+            BigDecimal.valueOf(firstPosition.getLng()).setScale(
+              6,
+              RoundingMode.HALF_UP
+            ),
           };
         }
       }
     } catch (Exception ignored) {
-      // Fallback silencioso caso o serviço secundário de geocoding oscile
+      // Silent fallback to BrasilAPI coordinates if OpenCage is unavailable or quota is exceeded
     }
     return null;
   }

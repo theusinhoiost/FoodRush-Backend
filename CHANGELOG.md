@@ -8,6 +8,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **OpenCage Geocoder Integration & Address Endpoints (`service/GeocodingService`, `service/AddressService`, `controller/AddressController`, `dto/response/AddressResponseDTO`):**
+  - Integrated **OpenCage Geocoder (`jopencage` 3.0.0)** in `GeocodingService` to resolve exact street-level geographic coordinates (`latitude` and `longitude`) from Brazilian postal codes (CEP) and street numbers, with automatic fallback to **BrasilAPI CEP v2** coordinates.
+  - Added `opencage.api.key` configuration property in `application.yml` (`${OPENCAGE_API_KEY:}`) and documented `OPENCAGE_API_KEY` in `.env.example`.
+  - Enriched `AddressResponseDTO` with:
+    - `formattedAddress`: complete human-readable address string for user display.
+    - `mapUrl`: direct link to view the exact location on Google Maps.
+    - `openStreetMapUrl`: direct link to view the exact location on OpenStreetMap.
+  - Created `AddressService` and `AddressController` (`/api/v1/addresses`) exposing endpoints to list addresses (`GET /addresses`), get address by ID (`GET /addresses/{id}`), create/save a geocoded address (`POST /addresses`), and preview geocoded coordinates and map links (`POST /addresses/geocode`).
+  - Added unit test suite `AddressAndGeocodingTest` covering OpenCage coordinate resolution, formatted address generation, and map visualization URLs.
+- **Multi-Tenant Ownership Verification & Forbidden Exception Handling (`service/MenuService`, `controller/MenuController`, `exception/GlobalExceptionHandler`):**
+  - Implemented `validateRestaurantOwnership` verifying that the authenticated user (`principal.getName()`) is the true owner of the restaurant or holds `ROLE_ADMIN` before allowing creation, availability toggles, or deletion of menu dishes.
+  - Added centralized handler for `AccessDeniedException` in `GlobalExceptionHandler` returning RFC 7807 **`403 Forbidden`** (`https://api.foodrush.com/errors/forbidden`).
+  - Added unit test `shouldThrowWhenNotOwner()` in `MenuServiceTest`.
+- **Mock Menu Catalog Migration (`db/migration/V3__seed_dishes_and_complements.sql`):**
+  - Added new Flyway migration `V3__seed_dishes_and_complements.sql` populating rich mock catalogs for both seeded restaurants (`FoodRush Burger Artesanal` and `Pizzaria Bella Napoli`).
+  - Added dishes: *Bacon Cheddar Bomb*, *Chicken Crispy Supreme*, *Veggie Falafel Burger*, *Onion Rings Crocantes*, *Milkshake de Nutella com Ninho*, *Pizza Calabresa Especial*, *Pizza Quatro Queijos Gratinada*, *Pizza Frango com Catupiry*, and *Pizza Doce de Banana com Canela*.
+  - Added multiple portion sizes with inventory stock counts and custom complement groups (e.g. *Turbine seu Cheddar*, *Bordas Recheadas de Catupiry/Cheddar/Vulcão Provolone*).
+- **Menu and Catalog Management (`controller/MenuController`, `service/MenuService`, `dto/`):**
+  - Implemented `MenuService` with Spring Cache integration (`@Cacheable` and `@CacheEvict` on `restaurant_menu`) for high-performance public menu retrieval.
+  - Added support for hierarchical menu items: dish base prices, size variants with independent inventory (`MenuItemSize`), and complement groups with optional/required constraints and min/max quantities (`ComplementGroup` & `ComplementItem`).
+  - Implemented `MenuController` with REST endpoints:
+    - `GET /api/v1/restaurants/{restaurantId}/menu`: public cached retrieval of a restaurant's active catalog.
+    - `GET /api/v1/menu-items/{id}`: detailed view of an individual dish with sizes and customizations.
+    - `POST /api/v1/restaurants/{restaurantId}/menu-items`: authenticated creation of dishes with nested sizes and complement groups.
+    - `PATCH /api/v1/menu-items/{id}/toggle-available`: flip menu item public visibility.
+    - `DELETE /api/v1/menu-items/{id}`: remove dish from restaurant catalog.
+  - Configured public access in `SecurityConfig` for `GET /menu-items/**` and `GET /restaurants/{id}/menu`.
+  - Added unit test suites: `MenuServiceTest` (4 tests) and `MenuControllerTest` (3 tests).
+- **Haversine Distance & Dynamic Delivery Fee Calculation (`util/GeoDistanceUtils`, `service/DeliveryCalculationService`, `dto/`):**
+  - Created `GeoDistanceUtils` implementing the Haversine great-circle trigonometric formula to compute distance in kilometers between two geographic points (latitude/longitude).
+  - Created `DeliveryCalculationService` providing dynamic delivery fee calculation (`baseFee + (distanceKm * feePerKm)`) and estimated preparation/transit minutes (`20min base + 4min/km`).
+  - Added nearby restaurant spatial filtering (`findNearbyRestaurants`) within a configurable radial boundary (`radiusKm`).
+  - Integrated dynamic delivery fee calculation into `OrderService.create()` when customer and restaurant have geocoded coordinates.
+  - Added new REST endpoints in `RestaurantController`:
+    - `GET /api/v1/restaurants/nearby?lat=...&lon=...&radiusKm=10.0`
+    - `GET /api/v1/restaurants/{id}/delivery-estimate?lat=...&lon=...`
+  - Added test suites: `GeoDistanceUtilsTest` (3 tests) and `DeliveryCalculationServiceTest` (2 tests).
+- **Order Management & Checkout Flow (`controller/OrderController`, `service/OrderService`, `dto/`):**
+  - Implemented `OrderService` with transactional checkout, idempotency key verification, restaurant operational check, pessimistic locking on stock deduction (`MenuItemSizeRepository.findByIdWithPessimisticLock`), automatic address resolution, and subtotal + delivery fee calculation.
+  - Implemented `OrderController` exposing REST endpoints:
+    - `POST /api/v1/orders`: create order with items, sizes, and complement add-ons.
+    - `GET /api/v1/orders/{id}`: retrieve order with full details.
+    - `GET /api/v1/orders/customer/{customerId}`: list order history by customer.
+    - `GET /api/v1/orders/restaurant/{restaurantId}?status=...`: filter restaurant orders by status.
+    - `PATCH /api/v1/orders/{id}/status`: advance order status with state machine validation and dispatch dynamic `OrderStatusChangedEvent` to RabbitMQ.
+  - Added request/response DTOs: `OrderCreateRequestDTO`, `OrderItemRequestDTO`, `OrderItemComplementRequestDTO`, `OrderStatusUpdateRequestDTO`, `OrderResponseDTO`, `OrderItemResponseDTO`, and `OrderItemComplementResponseDTO`.
+  - Added comprehensive unit test suites: `OrderServiceTest` (6 tests) and `OrderControllerTest` (4 tests).
+- **Cross-Origin Resource Sharing (CORS) Configuration (`config/SecurityConfig`):**
+  - Configured `CorsConfigurationSource` allowing standard HTTP methods (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`) and localhost frontend origins (`http://localhost:*`, `http://127.0.0.1:*`) with credentials.
+  - Enabled `.cors()` in `SecurityFilterChain`.
 - **Docker Environment Configuration (`.env.example`, `.env`, `docker-compose.yml`, `.gitignore`):**
   - Added `.env.example` and local `.env` files with configurable database, Redis, RabbitMQ, Prometheus, and Grafana ports and credentials.
   - Parameterized `docker-compose.yml` with environment variables and sensible fallback defaults.
@@ -23,12 +73,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Created consumers: `RestaurantOrderConsumer`, `CourierDispatchConsumer`, and `CustomerTimelineConsumer`.
   - Added `READY` status to `OrderStatus` enum.
   - Added unit test suites for producer and consumers (`OrderEventProducerTest`, `OrderConsumersTest`).
-- **Observability and Metrics with Prometheus & Grafana (`docker/`, `pom.xml`, `application.yml`, `config/SecurityConfig`):**
+- **Observability and Metrics with Prometheus & Grafana (`docker/`, `pom.xml`, `application.yml`, `config/SecurityConfig`, `config/BusinessMetricsConfig`):**
   - Added `spring-boot-starter-actuator` and `micrometer-registry-prometheus` dependencies.
   - Configured Actuator endpoints (`health`, `info`, `metrics`, `prometheus`) and HTTP request latency percentiles histogram (`percentiles-histogram`).
+  - Created `BusinessMetricsConfig` exposing custom Micrometer `Gauge` metrics for users by role (`foodrush_users_by_role`), users by status (`foodrush_users_by_status`), orders by status (`foodrush_orders_by_status`), and restaurants by operational state (`foodrush_restaurants_by_status`).
   - Permitted Actuator endpoints (`/actuator/**`, `/api/v1/actuator/**`) in `SecurityConfig`.
   - Created Prometheus scraping configuration in `docker/prometheus/prometheus.yml`.
-  - Added automated Prometheus datasource provisioning for Grafana in `docker/grafana/provisioning/datasources/prometheus.yml`.
+  - Added automated **Prometheus** and **PostgreSQL** datasource provisioning for Grafana in `docker/grafana/provisioning/datasources/prometheus.yml`.
+  - Added pre-configured **FoodRush Business & Observability Dashboard** (`docker/grafana/provisioning/dashboards/foodrush-overview.json`) with KPI stat cards, donut/pie charts for users by role, bar gauges for orders by status, restaurant performance table, HTTP RPS, and JVM memory telemetry.
   - Added `prometheus` (port `9090`) and `grafana` (port `3000`) containers with persistent volumes to `docker-compose.yml`.
 - **Address Management, Automated Geocoding, and DB Seed (`model/Address`, `service/GeocodingService`, `db/migration/`):**
   - Unified `addresses` table and foreign keys `address_id` (`users` and `restaurants`) into `V1__init_schema.sql`.

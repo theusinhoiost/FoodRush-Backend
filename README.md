@@ -52,12 +52,22 @@ foodrush-api/
 │   │   │   │   └── RestaurantOrderConsumer.java
 │   │   │   ├── controller/
 │   │   │   │   ├── AuthController.java
+│   │   │   │   ├── MenuController.java
+│   │   │   │   ├── OrderController.java
 │   │   │   │   ├── RestaurantController.java
 │   │   │   │   └── UserController.java
 │   │   │   ├── dto/
 │   │   │   │   ├── request/
 │   │   │   │   │   ├── AddressRequestDTO.java
+│   │   │   │   │   ├── ComplementGroupRequestDTO.java
+│   │   │   │   │   ├── ComplementItemRequestDTO.java
 │   │   │   │   │   ├── LoginRequestDTO.java
+│   │   │   │   │   ├── MenuItemRequestDTO.java
+│   │   │   │   │   ├── MenuItemSizeRequestDTO.java
+│   │   │   │   │   ├── OrderCreateRequestDTO.java
+│   │   │   │   │   ├── OrderItemComplementRequestDTO.java
+│   │   │   │   │   ├── OrderItemRequestDTO.java
+│   │   │   │   │   ├── OrderStatusUpdateRequestDTO.java
 │   │   │   │   │   ├── RefreshTokenRequestDTO.java
 │   │   │   │   │   ├── RestaurantPatchRequestDTO.java
 │   │   │   │   │   ├── RestaurantRequestDTO.java
@@ -66,6 +76,14 @@ foodrush-api/
 │   │   │   │   └── response/
 │   │   │   │       ├── AddressResponseDTO.java
 │   │   │   │       ├── AuthResponseDTO.java
+│   │   │   │       ├── ComplementGroupDetailDTO.java
+│   │   │   │       ├── ComplementItemDetailDTO.java
+│   │   │   │       ├── DeliveryFeeEstimateResponseDTO.java
+│   │   │   │       ├── MenuItemResponseDTO.java
+│   │   │   │       ├── MenuItemSizeDetailDTO.java
+│   │   │   │       ├── OrderItemComplementResponseDTO.java
+│   │   │   │       ├── OrderItemResponseDTO.java
+│   │   │   │       ├── OrderResponseDTO.java
 │   │   │   │       ├── RestaurantResponseDTO.java
 │   │   │   │       └── UserResponseDTO.java
 │   │   │   ├── enums/
@@ -103,9 +121,14 @@ foodrush-api/
 │   │   │   │   ├── JwtTokenProvider.java
 │   │   │   │   └── UserDetailsServiceImpl.java
 │   │   │   ├── service/
+│   │   │   │   ├── DeliveryCalculationService.java
 │   │   │   │   ├── GeocodingService.java
+│   │   │   │   ├── MenuService.java
+│   │   │   │   ├── OrderService.java
 │   │   │   │   ├── RestaurantService.java
 │   │   │   │   └── UserService.java
+│   │   │   ├── util/
+│   │   │   │   └── GeoDistanceUtils.java
 │   │   │   ├── validation/
 │   │   │   │   ├── CepValidatorConstraint.java
 │   │   │   │   ├── CnpjValidatorConstraint.java
@@ -119,19 +142,27 @@ foodrush-api/
 │   │   └── resources/
 │   │       ├── db/migration/
 │   │       │   ├── V1__init_schema.sql
-│   │       │   └── V2__seed_mock_data.sql
+│   │       │   ├── V2__seed_mock_data.sql
+│   │       │   └── V3__seed_dishes_and_complements.sql
 │   │       └── application.yml
 │   └── test/
 │       └── java/com/foodrush/api/
 │           ├── consumer/
 │           │   └── OrderConsumersTest.java
 │           ├── controller/
-│           │   └── AuthControllerTest.java
+│           │   ├── AuthControllerTest.java
+│           │   ├── MenuControllerTest.java
+│           │   └── OrderControllerTest.java
 │           ├── producer/
 │           │   └── OrderEventProducerTest.java
 │           ├── service/
+│           │   ├── DeliveryCalculationServiceTest.java
+│           │   ├── MenuServiceTest.java
+│           │   ├── OrderServiceTest.java
 │           │   ├── RestaurantServiceTest.java
 │           │   └── UserServiceTest.java
+│           ├── util/
+│           │   └── GeoDistanceUtilsTest.java
 │           └── ApiApplicationTests.java
 ├── .env.example
 ├── docker-compose.yml
@@ -232,8 +263,31 @@ Once the application is running, access Swagger UI at:
 | `POST` | `/api/v1/restaurants` | Register new restaurant (`RestaurantRequestDTO` with CEP geocoding) | Bearer JWT |
 | `GET` | `/api/v1/restaurants` | List all restaurants (cached in `restaurants`) | Public |
 | `GET` | `/api/v1/restaurants/{id}` | Find restaurant details by ID (cached in `restaurants`) | Public |
+| `GET` | `/api/v1/restaurants/nearby` | Find restaurants within a geographic radius (Haversine formula: `lat`, `lon`, `radiusKm`) | Public |
+| `GET` | `/api/v1/restaurants/{id}/delivery-estimate` | Estimate dynamic delivery fee and duration for client coordinates | Public |
 | `PUT` | `/api/v1/restaurants/{id}` | Update restaurant profile, contact, and address | Bearer JWT |
+| `PATCH`| `/api/v1/restaurants/{id}` | Partial update of restaurant profile fields | Bearer JWT |
 | `PATCH`| `/api/v1/restaurants/{id}/toggle-open` | Toggle restaurant operational status (open/closed) | Bearer JWT |
+
+### Menus & Catalog (`/api/v1/restaurants/{id}/menu` & `/api/v1/menu-items`)
+
+| Method | Endpoint | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/restaurants/{restaurantId}/menu` | Retrieve complete active menu with sizes, inventory, and complement groups (cached in `restaurant_menu`) | Public |
+| `GET` | `/api/v1/menu-items/{id}` | Get detailed dish information by ID | Public |
+| `POST` | `/api/v1/restaurants/{restaurantId}/menu-items` | Create new dish with sizes, stock quantity, and customization groups | Bearer JWT |
+| `PATCH`| `/api/v1/menu-items/{id}/toggle-available` | Toggle dish availability on menu | Bearer JWT |
+| `DELETE`| `/api/v1/menu-items/{id}` | Remove dish from restaurant menu | Bearer JWT |
+
+### Orders & Checkout (`/api/v1/orders`)
+
+| Method | Endpoint | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/orders` | Place order with idempotent check (`idempotencyKey`), stock deduction, dynamic delivery fee, and snapshot pricing | Bearer JWT |
+| `GET` | `/api/v1/orders/{id}` | Get full order details and items | Bearer JWT |
+| `GET` | `/api/v1/orders/customer/{customerId}` | Retrieve customer order history sorted by most recent | Bearer JWT |
+| `GET` | `/api/v1/orders/restaurant/{restaurantId}` | Filter restaurant orders by lifecycle status (`?status=PAID`, etc.) | Bearer JWT |
+| `PATCH`| `/api/v1/orders/{id}/status` | Advance order lifecycle and publish event to RabbitMQ | Bearer JWT |
 
 ## Event-Driven Messaging (RabbitMQ)
 
@@ -263,8 +317,12 @@ The API provides full metrics via **Spring Boot Actuator** and **Micrometer Prom
 - **Prometheus:** [http://localhost:9090](http://localhost:9090)
   - Automatic 5s scrape configured in `docker/prometheus/prometheus.yml`.
 - **Grafana:** [http://localhost:3000](http://localhost:3000) (User: `admin` / Password: `admin`)
-  - Prometheus datasource pre-configured via `docker/grafana/provisioning/datasources/prometheus.yml`.
-  - Recommended community dashboard: import dashboard ID **`4701`** (JVM Micrometer) for real-time visualization of CPU, heap memory, HTTP request latency percentiles (p95, p99), and connection pools.
+  - **Pre-provisioned DataSources:** Both **Prometheus** (`uid: prometheus`) and **PostgreSQL** (`uid: postgres`) are automatically configured via `docker/grafana/provisioning/datasources/prometheus.yml`.
+  - **Pre-provisioned Dashboard:** Open [http://localhost:3000/d/foodrush-overview](http://localhost:3000/d/foodrush-overview) (**FoodRush API — Painel de Negócio & Observabilidade**) to view pre-built charts for:
+    - Total Users, Restaurants, Menu Items, Orders, and Gross Sales Volume (R$).
+    - Users by Role (`CLIENT`, `RESTAURANT`, `COURIER`, `ADMIN`) and Orders by Status (`CREATED`, `PAID`, `PREPARING`, `READY`, `IN_ROUTE`, `DELIVERED`, `CANCELED`).
+    - Open vs Closed Restaurants and Restaurant Performance Table.
+    - Real-time Micrometer Prometheus gauges (`foodrush_users_by_role`, `foodrush_orders_by_status`), HTTP Request Rate (req/s), and JVM Heap Memory.
 
 ## Running Tests
 

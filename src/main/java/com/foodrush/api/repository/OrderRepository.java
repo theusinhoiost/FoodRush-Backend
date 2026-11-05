@@ -30,4 +30,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
       "WHERE o.id = :id"
   )
   Optional<Order> findByIdWithDetails(@Param("id") UUID id);
+
+  long countByStatus(OrderStatus status);
 }
