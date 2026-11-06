@@ -14,6 +14,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,9 +37,13 @@ public class RestaurantService {
     this.geocodingService = geocodingService;
   }
 
+  public RestaurantResponseDTO create(RestaurantRequestDTO dto) {
+    return create(dto, null);
+  }
+
   @CacheEvict(value = "restaurants", allEntries = true)
   @Transactional
-  public RestaurantResponseDTO create(RestaurantRequestDTO dto) {
+  public RestaurantResponseDTO create(RestaurantRequestDTO dto, String authenticatedEmail) {
     if (restaurantRepository.existsByCnpj(dto.cnpj())) {
       throw new BusinessException(
         "Já existe um restaurante cadastrado com este CNPJ."
@@ -54,6 +61,14 @@ public class RestaurantService {
           "Proprietário (User) não encontrado com o ID informado."
         )
       );
+
+    if (authenticatedEmail != null && !authenticatedEmail.isBlank() && !isAdmin()) {
+      if (!owner.getEmail().equalsIgnoreCase(authenticatedEmail)) {
+        throw new AccessDeniedException(
+          "Você só pode cadastrar um restaurante para o seu próprio usuário."
+        );
+      }
+    }
 
     Address resolvedAddress = geocodingService.resolveAddress(dto.address());
 
@@ -92,24 +107,44 @@ public class RestaurantService {
     return RestaurantResponseDTO.fromEntity(restaurant);
   }
 
+  public RestaurantResponseDTO toggleOpenStatus(UUID id) {
+    return toggleOpenStatus(id, null);
+  }
+
   @CacheEvict(value = "restaurants", allEntries = true)
   @Transactional
-  public RestaurantResponseDTO toggleOpenStatus(UUID id) {
+  public RestaurantResponseDTO toggleOpenStatus(UUID id, String authenticatedEmail) {
     Restaurant restaurant = restaurantRepository
       .findById(id)
       .orElseThrow(() -> new BusinessException("Restaurante não encontrado."));
+
+    validateRestaurantOwnership(restaurant, authenticatedEmail);
 
     restaurant.setIsOpen(!restaurant.getIsOpen());
     Restaurant updated = restaurantRepository.save(restaurant);
     return RestaurantResponseDTO.fromEntity(updated);
   }
 
+  public RestaurantResponseDTO update(UUID id, RestaurantRequestDTO dto) {
+    return update(id, dto, null);
+  }
+
   @CacheEvict(value = "restaurants", allEntries = true)
   @Transactional
-  public RestaurantResponseDTO update(UUID id, RestaurantRequestDTO dto) {
+  public RestaurantResponseDTO update(UUID id, RestaurantRequestDTO dto, String authenticatedEmail) {
     Restaurant restaurant = restaurantRepository
       .findById(id)
       .orElseThrow(() -> new BusinessException("Restaurante não encontrado."));
+
+    validateRestaurantOwnership(restaurant, authenticatedEmail);
+
+    if (authenticatedEmail != null && !authenticatedEmail.isBlank() && !isAdmin()) {
+      if (restaurant.getOwner() != null && !restaurant.getOwner().getId().equals(dto.ownerId())) {
+        throw new AccessDeniedException(
+          "Apenas administradores podem transferir a propriedade do restaurante."
+        );
+      }
+    }
 
     if (
       !restaurant.getCnpj().equals(dto.cnpj()) &&
@@ -143,12 +178,26 @@ public class RestaurantService {
     return RestaurantResponseDTO.fromEntity(updatedRestaurant);
   }
 
+  public RestaurantResponseDTO patch(UUID id, RestaurantPatchRequestDTO dto) {
+    return patch(id, dto, null);
+  }
+
   @CacheEvict(value = "restaurants", allEntries = true)
   @Transactional
-  public RestaurantResponseDTO patch(UUID id, RestaurantPatchRequestDTO dto) {
+  public RestaurantResponseDTO patch(UUID id, RestaurantPatchRequestDTO dto, String authenticatedEmail) {
     Restaurant restaurant = restaurantRepository
       .findById(id)
       .orElseThrow(() -> new BusinessException("Restaurante não encontrado."));
+
+    validateRestaurantOwnership(restaurant, authenticatedEmail);
+
+    if (dto.ownerId() != null && authenticatedEmail != null && !authenticatedEmail.isBlank() && !isAdmin()) {
+      if (restaurant.getOwner() != null && !restaurant.getOwner().getId().equals(dto.ownerId())) {
+        throw new AccessDeniedException(
+          "Apenas administradores podem transferir a propriedade do restaurante."
+        );
+      }
+    }
 
     if (dto.tradeName() != null) {
       restaurant.setTradeName(dto.tradeName());
@@ -206,5 +255,27 @@ public class RestaurantService {
 
     Restaurant updatedRestaurant = restaurantRepository.save(restaurant);
     return RestaurantResponseDTO.fromEntity(updatedRestaurant);
+  }
+
+  private void validateRestaurantOwnership(Restaurant restaurant, String authenticatedEmail) {
+    if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
+      return;
+    }
+
+    User owner = restaurant.getOwner();
+    boolean isOwner = owner != null && owner.getEmail().equalsIgnoreCase(authenticatedEmail);
+    boolean isAdmin = isAdmin();
+
+    if (!isOwner && !isAdmin) {
+      throw new AccessDeniedException(
+        "Você não possui permissão para modificar as informações deste restaurante."
+      );
+    }
+  }
+
+  private boolean isAdmin() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    return auth != null && auth.getAuthorities().stream()
+      .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
   }
 }
