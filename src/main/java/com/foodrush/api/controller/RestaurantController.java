@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -73,6 +74,14 @@ public class RestaurantController {
         content = @Content
       ),
       @ApiResponse(
+        responseCode = "403",
+        description = "Access denied: unauthorized to create restaurant for another owner",
+        content = @Content(
+          mediaType = "application/problem+json",
+          schema = @Schema(implementation = ProblemDetail.class)
+        )
+      ),
+      @ApiResponse(
         responseCode = "422",
         description = "Business rule violation (e.g., duplicate CNPJ/phone, owner not found, or invalid CEP)",
         content = @Content(
@@ -83,9 +92,11 @@ public class RestaurantController {
     }
   )
   public ResponseEntity<RestaurantResponseDTO> create(
-    @RequestBody @Valid RestaurantRequestDTO dto
+    @RequestBody @Valid RestaurantRequestDTO dto,
+    Principal principal
   ) {
-    RestaurantResponseDTO createdRestaurant = restaurantService.create(dto);
+    String email = principal != null ? principal.getName() : null;
+    RestaurantResponseDTO createdRestaurant = restaurantService.create(dto, email);
     return ResponseEntity.status(HttpStatus.CREATED).body(createdRestaurant);
   }
 
@@ -179,6 +190,14 @@ public class RestaurantController {
         content = @Content
       ),
       @ApiResponse(
+        responseCode = "403",
+        description = "Access denied: authenticated user is not the restaurant owner or admin",
+        content = @Content(
+          mediaType = "application/problem+json",
+          schema = @Schema(implementation = ProblemDetail.class)
+        )
+      ),
+      @ApiResponse(
         responseCode = "422",
         description = "Restaurant not found or CNPJ already registered to another restaurant",
         content = @Content(
@@ -194,9 +213,11 @@ public class RestaurantController {
       example = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
       required = true
     ) @PathVariable UUID id,
-    @RequestBody @Valid RestaurantRequestDTO dto
+    @RequestBody @Valid RestaurantRequestDTO dto,
+    Principal principal
   ) {
-    RestaurantResponseDTO updatedRestaurant = restaurantService.update(id, dto);
+    String email = principal != null ? principal.getName() : null;
+    RestaurantResponseDTO updatedRestaurant = restaurantService.update(id, dto, email);
     return ResponseEntity.ok(updatedRestaurant);
   }
 
@@ -230,6 +251,14 @@ public class RestaurantController {
         content = @Content
       ),
       @ApiResponse(
+        responseCode = "403",
+        description = "Access denied: authenticated user is not the restaurant owner or admin",
+        content = @Content(
+          mediaType = "application/problem+json",
+          schema = @Schema(implementation = ProblemDetail.class)
+        )
+      ),
+      @ApiResponse(
         responseCode = "422",
         description = "Restaurant not found or business rule conflict",
         content = @Content(
@@ -245,9 +274,11 @@ public class RestaurantController {
       example = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
       required = true
     ) @PathVariable UUID id,
-    @RequestBody @Valid RestaurantPatchRequestDTO dto
+    @RequestBody @Valid RestaurantPatchRequestDTO dto,
+    Principal principal
   ) {
-    RestaurantResponseDTO updatedRestaurant = restaurantService.patch(id, dto);
+    String email = principal != null ? principal.getName() : null;
+    RestaurantResponseDTO updatedRestaurant = restaurantService.patch(id, dto, email);
     return ResponseEntity.ok(updatedRestaurant);
   }
 
@@ -273,6 +304,14 @@ public class RestaurantController {
         content = @Content
       ),
       @ApiResponse(
+        responseCode = "403",
+        description = "Access denied: authenticated user is not the restaurant owner or admin",
+        content = @Content(
+          mediaType = "application/problem+json",
+          schema = @Schema(implementation = ProblemDetail.class)
+        )
+      ),
+      @ApiResponse(
         responseCode = "422",
         description = "Restaurant not found with the specified ID",
         content = @Content(
@@ -287,9 +326,11 @@ public class RestaurantController {
       description = "Unique UUID of the restaurant",
       example = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
       required = true
-    ) @PathVariable UUID id
+    ) @PathVariable UUID id,
+    Principal principal
   ) {
-    RestaurantResponseDTO updated = restaurantService.toggleOpenStatus(id);
+    String email = principal != null ? principal.getName() : null;
+    RestaurantResponseDTO updated = restaurantService.toggleOpenStatus(id, email);
     return ResponseEntity.ok(updated);
   }
 
