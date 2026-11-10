@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Redis Password Authentication Support (`application.yml`, `.env.example`):**
+  - Added support for `spring.data.redis.password` (`${REDIS_PASSWORD:}`) to support managed Redis cloud instances (such as Railway or cloud providers requiring auth) while remaining optional for local Docker Compose development.
 - **Dynamic Cloud Server Port Resolution (`application.yml`):**
   - Updated `server.port` to `${PORT:8080}` to dynamically bind to cloud provider assigned container ports (such as Railway or Render) while maintaining standard fallback to `8080` in local environments.
 - **Production-Ready Docker Containerization & Railway / Cloud Deployment (`Dockerfile`, `.dockerignore`, `railway.json`):**
