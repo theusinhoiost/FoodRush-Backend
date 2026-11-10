@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Restaurant Multi-Tenant Ownership & Authorization Verification (`service/RestaurantService`, `controller/RestaurantController`):**
+  - Added `validateRestaurantOwnership` in `RestaurantService` to ensure that only the authenticated restaurant owner (`owner.getEmail()`) or a user with `ROLE_ADMIN` can update restaurant details (`PUT /restaurants/{id}`, `PATCH /restaurants/{id}`) or toggle its open/closed operational status (`PATCH /restaurants/{id}/toggle-open`).
+  - Restricted restaurant registration (`POST /restaurants`) so non-admin users can only register restaurants linked to their own user account.
+  - Restricted ownership transfer (`ownerId` field in `PUT` and `PATCH`) to users holding `ROLE_ADMIN`.
+  - Updated `RestaurantController` to inject `java.security.Principal` and pass the authenticated email to `RestaurantService`, along with OpenAPI `@ApiResponse(responseCode = "403")` annotations.
+  - Added comprehensive test coverage in `RestaurantServiceTest` and `RestaurantControllerTest` (53 tests passing across the project).
 - **OpenCage Geocoder Integration & Address Endpoints (`service/GeocodingService`, `service/AddressService`, `controller/AddressController`, `dto/response/AddressResponseDTO`):**
   - Integrated **OpenCage Geocoder (`jopencage` 3.0.0)** in `GeocodingService` to resolve exact street-level geographic coordinates (`latitude` and `longitude`) from Brazilian postal codes (CEP) and street numbers, with automatic fallback to **BrasilAPI CEP v2** coordinates.
   - Added `opencage.api.key` configuration property in `application.yml` (`${OPENCAGE_API_KEY:}`) and documented `OPENCAGE_API_KEY` in `.env.example`.
