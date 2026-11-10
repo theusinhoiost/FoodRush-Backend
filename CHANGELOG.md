@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Production-Ready Docker Containerization & Railway / Cloud Deployment (`Dockerfile`, `.dockerignore`, `railway.json`):**
+  - Added multi-stage `Dockerfile` using `eclipse-temurin:25-jdk` (build stage) and `eclipse-temurin:25-jre` (runtime stage) for optimal size and security.
+  - Implemented non-root security execution under dedicated system user and group `foodrush:foodrush` (UID 10001).
+  - Configured optimized JVM container memory ergonomics (`-XX:+UseContainerSupport -XX:MaxRAM=384m -Xms128m -Xmx256m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`) to fit tight budget constraints, minimize RSS footprint, and support hibernation / sleep on idle.
+  - Added `.dockerignore` excluding local git directories, targets, local environment files, and IDE artifacts from build context.
+  - Added `railway.json` defining deployment configuration, healthcheck path (`/api/v1/actuator/health`), and restart policies for PaaS hosting.
 - **Restaurant Multi-Tenant Ownership & Authorization Verification (`service/RestaurantService`, `controller/RestaurantController`):**
   - Added `validateRestaurantOwnership` in `RestaurantService` to ensure that only the authenticated restaurant owner (`owner.getEmail()`) or a user with `ROLE_ADMIN` can update restaurant details (`PUT /restaurants/{id}`, `PATCH /restaurants/{id}`) or toggle its open/closed operational status (`PATCH /restaurants/{id}/toggle-open`).
   - Restricted restaurant registration (`POST /restaurants`) so non-admin users can only register restaurants linked to their own user account.
