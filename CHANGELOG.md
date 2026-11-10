@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dynamic Cloud Server Port Resolution (`application.yml`):**
+  - Updated `server.port` to `${PORT:8080}` to dynamically bind to cloud provider assigned container ports (such as Railway or Render) while maintaining standard fallback to `8080` in local environments.
 - **Production-Ready Docker Containerization & Railway / Cloud Deployment (`Dockerfile`, `.dockerignore`, `railway.json`):**
   - Added multi-stage `Dockerfile` using `eclipse-temurin:25-jdk` (build stage) and `eclipse-temurin:25-jre` (runtime stage) for optimal size and security.
   - Implemented non-root security execution under dedicated system user and group `foodrush:foodrush` (UID 10001).

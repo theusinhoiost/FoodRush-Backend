@@ -35,7 +35,7 @@ spring:
     password: ${RABBITMQ_PASSWORD:${RABBITMQ_DEFAULT_PASS:guest}}
 
 server:
-  port: 8080
+  port: ${PORT:8080}
   forward-headers-strategy: framework
   servlet:
     context-path: /api/v1
