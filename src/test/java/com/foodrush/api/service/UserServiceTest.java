@@ -99,6 +99,30 @@ class UserServiceTest {
   }
 
   @Test
+  @DisplayName("Deve bloquear tentativa de criar conta com perfil ADMIN no cadastro")
+  void shouldThrowExceptionWhenTryingToRegisterAsAdmin() {
+    UserRequestDTO dto = new UserRequestDTO(
+      "Hacker Silva",
+      "hacker@email.com",
+      "senha123",
+      "11999998888",
+      "12345678909",
+      "ADMIN",
+      null
+    );
+
+    when(userRepository.existsByPhone(dto.phone())).thenReturn(false);
+    when(userRepository.existsByEmail(dto.email())).thenReturn(false);
+    when(userRepository.existsByCpf(dto.cpf())).thenReturn(false);
+
+    assertThatThrownBy(() -> userService.create(dto))
+      .isInstanceOf(BusinessException.class)
+      .hasMessage("Não é permitido registrar contas com perfil ADMIN publicamente.");
+
+    verify(userRepository, never()).save(any(User.class));
+  }
+
+  @Test
   @DisplayName("Deve atualizar parcialmente um usuário (patch) com sucesso")
   void shouldPatchUserSuccessfully() {
     UUID userId = UUID.randomUUID();

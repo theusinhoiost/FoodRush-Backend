@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Nginx Reverse Proxy / API Gateway & Port Isolation (`docker/nginx/nginx.conf`, `docker-compose.yml`, `application.yml`, `.env.example`):**
+  - Added `nginx:1.27-alpine` container (`foodrush-nginx`) as the single external HTTP entry point on port `80` (`${NGINX_PORT:-80}`).
+  - Configured reverse proxy routing for the Spring Boot API (`/api/v1/`), Grafana (`/grafana/`), Prometheus (`/prometheus/`), and RabbitMQ Management UI (`/rabbitmq/`), plus a dedicated gateway health check endpoint (`GET /health`).
+  - Configured per-IP rate limiting zones (`auth_limit` at `5r/s` burst `10` for `/api/v1/auth/` and `api_limit` at `20r/s` burst `40` for `/api/v1/`), Gzip compression, and security headers (`server_tokens off`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`).
+  - Removed host port exposure (`ports:`) from Grafana (`3000`), Prometheus (`9090`), and RabbitMQ Management (`15672`), isolating them inside the internal Docker network.
+  - Bound PostgreSQL (`127.0.0.1:5432`), Redis (`127.0.0.1:6379`), and RabbitMQ AMQP (`127.0.0.1:5672`) strictly to the local loopback interface so they are never exposed on external network interfaces (`nmap`).
+  - Enabled `server.forward-headers-strategy: framework` in `application.yml` and sub-path serving on Grafana and Prometheus.
+  - Synchronized `.env.example` and `application.yml` with unified environment variable fallbacks for PostgreSQL, Redis, RabbitMQ, Grafana, OpenCage, and JWT settings.
+
+### Security
+- **Privilege Escalation Prevention & JWT Token Type Hardening (`service/UserService`, `dto/request/UserRequestDTO`, `security/JwtTokenProvider`, `security/JwtAuthenticationFilter`, `controller/AuthController`):**
+  - Blocked self-assignment of the `ADMIN` role in public user registration and profile update endpoints (`UserService`), preventing privilege escalation attacks.
+  - Added explicit `token_type` claim (`ACCESS` vs `REFRESH`) to signed JWTs in `JwtTokenProvider`.
+  - Updated `JwtAuthenticationFilter` to reject `REFRESH` tokens presented as Bearer access tokens, and updated `AuthController.refreshToken` to reject `ACCESS` tokens on `/api/v1/auth/refresh`.
+  - Restricted external scraping of `/api/v1/actuator/prometheus` and `/api/v1/actuator/metrics` (`403 Forbidden`) at the Nginx gateway and restricted `/prometheus/` UI access to private/local networks.
+  - Changed `management.endpoint.health.show-details` from `always` to `when_authorized` in `application.yml`.
+  - Added unit tests `shouldThrowExceptionWhenTryingToRegisterAsAdmin` (`UserServiceTest`) and `testRefreshToken_RejectAccessToken` (`AuthControllerTest`).
 - **OpenCage Geocoder Integration & Address Endpoints (`service/GeocodingService`, `service/AddressService`, `controller/AddressController`, `dto/response/AddressResponseDTO`):**
   - Integrated **OpenCage Geocoder (`jopencage` 3.0.0)** in `GeocodingService` to resolve exact street-level geographic coordinates (`latitude` and `longitude`) from Brazilian postal codes (CEP) and street numbers, with automatic fallback to **BrasilAPI CEP v2** coordinates.
   - Added `opencage.api.key` configuration property in `application.yml` (`${OPENCAGE_API_KEY:}`) and documented `OPENCAGE_API_KEY` in `.env.example`.

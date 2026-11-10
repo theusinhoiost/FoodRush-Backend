@@ -48,6 +48,11 @@ public class UserService {
     }
 
     RoleType role = parseRole(dto.role());
+    if (role == RoleType.ADMIN) {
+      throw new BusinessException(
+        "Não é permitido registrar contas com perfil ADMIN publicamente."
+      );
+    }
     String encodedPassword = passwordEncoder != null
       ? passwordEncoder.encode(dto.password())
       : dto.password();
@@ -137,6 +142,11 @@ public class UserService {
     }
 
     RoleType role = parseRole(dto.role());
+    if (role == RoleType.ADMIN) {
+      throw new BusinessException(
+        "Não é permitido registrar contas com perfil ADMIN publicamente."
+      );
+    }
     String encodedPassword = passwordEncoder != null
       ? passwordEncoder.encode(dto.password())
       : dto.password();

@@ -201,4 +201,21 @@ class AuthControllerTest {
 
         assertEquals("Refresh token inválido ou expirado.", exception.getMessage());
     }
+
+    @Test
+    @DisplayName("Deve rejeitar tentativa de usar um Access Token no endpoint de Refresh")
+    void testRefreshToken_RejectAccessToken() {
+        RefreshTokenRequestDTO requestDTO = new RefreshTokenRequestDTO(
+                "access_token_used_as_refresh"
+        );
+
+        when(tokenProvider.validateToken(anyString())).thenReturn(true);
+        when(tokenProvider.isAccessToken(anyString())).thenReturn(true);
+
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+                authController.refreshToken(requestDTO)
+        );
+
+        assertEquals("Refresh token inválido ou expirado.", exception.getMessage());
+    }
 }

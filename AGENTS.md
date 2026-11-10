@@ -9,10 +9,12 @@ Este documento define o contexto arquitetural, convenções de código e fluxos 
 - **Linguagem:** Java 25
 - **Framework:** Spring Boot 4.1.1
 - **Infraestrutura e Integrações:**
+  - **API Gateway / Reverse Proxy:** Nginx (`nginx:1.27-alpine`) centralizando o tráfego HTTP na porta `80` com Rate Limiting e cabeçalhos de segurança.
   - **Banco de Dados Relacional:** PostgreSQL com Spring Data JPA e migrações gerenciadas via Flyway.
   - **Cache / NoSQL:** Redis (`spring-boot-starter-data-redis`).
   - **Mensageria:** RabbitMQ (`spring-boot-starter-amqp`).
-  - **Segurança:** Spring Security (`spring-boot-starter-security`).
+  - **Observabilidade:** Spring Boot Actuator, Micrometer Prometheus, Prometheus e Grafana.
+  - **Segurança:** Spring Security (`spring-boot-starter-security`) + JWT (`HS512`).
   - **Validação:** Jakarta Bean Validation (`spring-boot-starter-validation`).
   - **Utilitários:** Project Lombok.
 
@@ -44,14 +46,18 @@ Utilize sempre o **Maven Wrapper** (`./mvnw`) na raiz do projeto:
 5. **Mensageria (RabbitMQ) e Cache (Redis):**
    - Centralize nomes de filas, exchanges, routing keys e prefixos de cache em classes de configuração ou propriedades tipadas (`@ConfigurationProperties`).
    - Garanta que consumidores AMQP sejam idempotentes e possuam tratamento adequado de falhas/DLQ.
-6. **Segurança:**
-   - Nunca faça commit de credenciais, chaves de API, senhas ou segredos em `application.properties`. Utilize variáveis de ambiente com valores padrão seguros apenas para desenvolvimento local.
+6. **Segurança e Isolamento de Portas (Docker & Nginx):**
+   - Nunca faça commit de credenciais, chaves de API, senhas ou segredos em `application.yml` / `application.properties`. Utilize variáveis de ambiente e mantenha o `.env.example` sempre 100% sincronizado com todas as variáveis usadas no `docker-compose.yml` e no `application.yml`.
+   - **Isolamento de Portas no Docker:** Apenas o container `nginx` pode expor portas em `0.0.0.0` (`80`/`443`). Painéis web internos (`grafana`, `prometheus`, `rabbitmq` management `15672`) **não** devem ter `ports:` expostas no host, sendo acessados exclusivamente via Nginx Reverse Proxy (`/grafana/`, `/prometheus/`, `/rabbitmq/`). Bancos e brokers (`postgres`, `redis`, `rabbitmq` AMQP `5672`) em ambiente de desenvolvimento devem fazer bind estritamente em loopback (`127.0.0.1:PORTA:PORTA`) para não ficarem expostos na rede local (`nmap`).
+   - **Segurança de Autenticação e Autorização:** Endpoints públicos de registro (`/auth/register`) nunca devem permitir auto-atribuição da role `ADMIN`. Tokens JWT devem diferenciar explicitamente `token_type` (`ACCESS` vs `REFRESH`) para impedir o uso de Refresh Tokens como Access Tokens.
 
-## 4. Boas Práticas de Testes e Manutenção
+## 4. Boas Práticas de Testes, Documentação e Fluxo de PR
 
 - Escreva testes unitários e de integração em `src/test/java/com/foodrush/api/` espelhando a estrutura de pacotes de `src/main/java/com/foodrush/api/`.
 - Utilize os starters de teste já disponíveis no `pom.xml` (`spring-boot-starter-webmvc-test`, `spring-boot-starter-data-jpa-test`, `spring-boot-starter-security-test`, `spring-boot-starter-amqp-test`, `spring-boot-starter-data-redis-test`, `spring-boot-starter-flyway-test`).
-- Mantenha o `CHANGELOG.md` atualizado na seção `[Unreleased]` ao introduzir novas funcionalidades, correções ou mudanças significativas.
-- Toda parte de documentação sempre deve ser escrita em inglês.
-- Nenhum PR deve ser feito diretamente em `prod`. Todos os PRs devem ser feitos em `dev` e depois mergeados em `prod` após passar pelo processo de review.
+- Sempre que finalizar alterações ou novas funcionalidades:
+  1. Atualize o `CHANGELOG.md` na seção `[Unreleased]` e o `README.md` (e `.env.example` quando aplicável).
+  2. Toda parte de documentação (`README.md`, `CHANGELOG.md`, Swagger/OpenAPI) sempre deve ser escrita em inglês.
+  3. Crie uma branch descritiva (`feat/...`, `fix/...`, `sec/...`) e abra um Pull Request direcionado para a branch `dev`.
+  4. Nenhum PR deve ser feito diretamente em `prod`. Todos os PRs devem ser feitos em `dev` e depois mergeados em `prod` após passar pelo processo de review.
 
