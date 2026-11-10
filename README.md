@@ -6,6 +6,7 @@ RESTful food delivery API (**FoodRush**), built with **Java 25** and **Spring Bo
 
 - **Language:** Java 25
 - **Framework:** Spring Boot 4.1.1 (`spring-boot-starter-webmvc`)
+- **API Gateway / Reverse Proxy:** Nginx 1.27 (`nginx:1.27-alpine`) with per-route rate limiting, security headers, Gzip compression, and internal Docker network isolation
 - **Persistence & Database:**
   - Spring Data JPA / Hibernate (`spring-boot-starter-data-jpa`)
   - PostgreSQL 17 (`org.postgresql:postgresql`)
@@ -35,8 +36,13 @@ foodrush-api/
 ├── docker/
 │   ├── grafana/
 │   │   └── provisioning/
+│   │       ├── dashboards/
+│   │       │   ├── dashboards.yml
+│   │       │   └── foodrush-overview.json
 │   │       └── datasources/
 │   │           └── prometheus.yml
+│   ├── nginx/
+│   │   └── nginx.conf
 │   └── prometheus/
 │       └── prometheus.yml
 ├── src/
@@ -196,30 +202,36 @@ foodrush-api/
    Default values for local development:
    | Variable | Default Value | Description |
    | :--- | :--- | :--- |
+   | `NGINX_PORT` | `80` | Nginx Reverse Proxy / API Gateway external port |
    | `POSTGRES_DB` | `foodrush_db` | PostgreSQL database name |
-   | `POSTGRES_USER` | `postgres` | PostgreSQL username |
-   | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL password |
-   | `POSTGRES_PORT` | `5432` | PostgreSQL external port |
-   | `REDIS_PORT` | `6379` | Redis external port |
-   | `RABBITMQ_DEFAULT_USER` | `guest` | RabbitMQ administrative user |
-   | `RABBITMQ_DEFAULT_PASS` | `guest` | RabbitMQ administrative password |
-   | `RABBITMQ_PORT` | `5672` | RabbitMQ AMQP port |
-   | `RABBITMQ_MANAGEMENT_PORT`| `15672` | RabbitMQ Management Web UI port |
-   | `PROMETHEUS_PORT` | `9090` | Prometheus external port |
-   | `GRAFANA_PORT` | `3000` | Grafana external port |
+   | `POSTGRES_USER` / `DB_USERNAME` | `postgres` | PostgreSQL username |
+   | `POSTGRES_PASSWORD` / `DB_PASSWORD` | `postgres` | PostgreSQL password |
+   | `POSTGRES_PORT` | `5432` | PostgreSQL port (bound to `127.0.0.1`) |
+   | `DB_URL` | `jdbc:postgresql://localhost:5432/foodrush_db` | Spring Boot JDBC connection URL |
+   | `REDIS_HOST` | `localhost` | Redis host |
+   | `REDIS_PORT` | `6379` | Redis port (bound to `127.0.0.1`) |
+   | `RABBITMQ_HOST` | `localhost` | RabbitMQ host |
+   | `RABBITMQ_PORT` | `5672` | RabbitMQ AMQP port (bound to `127.0.0.1`) |
+   | `RABBITMQ_DEFAULT_USER` / `RABBITMQ_USERNAME` | `guest` | RabbitMQ username |
+   | `RABBITMQ_DEFAULT_PASS` / `RABBITMQ_PASSWORD` | `guest` | RabbitMQ password |
    | `GRAFANA_ADMIN_USER` | `admin` | Grafana administrator username |
    | `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana administrator password |
+   | `OPENCAGE_API_KEY` | *(optional)* | OpenCage Geocoder API key |
+   | `JWT_SECRET` | *(64-byte key)* | Secret key for signing `HS512` JWT tokens |
+   | `JWT_ACCESS_EXPIRATION` | `900000` | Access token TTL in ms (15 minutes) |
+   | `JWT_REFRESH_EXPIRATION` | `604800000` | Refresh token TTL in ms (7 days) |
 
 3. **Start Infrastructure Services with Docker Compose:**
    ```bash
    docker compose up -d
    ```
-   This will spin up:
-   - **PostgreSQL 17:** `localhost:5432`
-   - **Redis 7:** `localhost:6379`
-   - **RabbitMQ 4 Management:** `localhost:5672` (Management UI: `http://localhost:15672` — `guest`/`guest`)
-   - **Prometheus:** `http://localhost:9090`
-   - **Grafana:** `http://localhost:3000` (Login: `admin` / `admin`)
+   This spins up the isolated Docker network with **Nginx** as the single external gateway on port `80`:
+   - **Nginx API Gateway:** `http://localhost` (Healthcheck: `http://localhost/health`)
+   - **PostgreSQL 17:** `127.0.0.1:5432` (loopback only)
+   - **Redis 7:** `127.0.0.1:6379` (loopback only)
+   - **RabbitMQ 4:** AMQP on `127.0.0.1:5672` (Management UI via Nginx: `http://localhost/rabbitmq/` — `guest`/`guest`)
+   - **Prometheus:** Internal only (Web UI via Nginx: `http://localhost/prometheus/`)
+   - **Grafana:** Internal only (Web UI via Nginx: `http://localhost/grafana/` — `admin`/`admin`)
 
 4. **Build and Run the Application:**
    ```bash
@@ -230,11 +242,11 @@ foodrush-api/
 
 ## Interactive API Documentation (Swagger / OpenAPI)
 
-Once the application is running, access Swagger UI at:
+Once the application is running, access Swagger UI through the Nginx Gateway (or directly on port `8080` in local dev):
 
-- **Swagger UI:** [http://localhost:8080/api/v1/swagger-ui/index.html](http://localhost:8080/api/v1/swagger-ui/index.html)
-- **Swagger UI Shortcut:** `http://localhost:8080/api/v1/docs`
-- **OpenAPI JSON Spec:** `http://localhost:8080/api/v1/docs/json`
+- **Swagger UI (via Nginx Gateway):** [http://localhost/api/v1/docs](http://localhost/api/v1/docs)
+- **OpenAPI JSON Spec (via Nginx Gateway):** [http://localhost/api/v1/docs/json](http://localhost/api/v1/docs/json)
+- **Direct Local Dev Port:** [http://localhost:8080/api/v1/docs](http://localhost:8080/api/v1/docs)
 
 ## API Endpoints
 
@@ -308,17 +320,17 @@ The application uses a **Topic Exchange** (`foodrush.orders.exchange`) to publis
 
 ## Observability & Monitoring (Prometheus & Grafana)
 
-The API provides full metrics via **Spring Boot Actuator** and **Micrometer Prometheus**:
+The API provides full metrics via **Spring Boot Actuator** and **Micrometer Prometheus**, protected by the **Nginx API Gateway**:
 
-- **Actuator Endpoints:**
-  - Healthcheck: [http://localhost:8080/api/v1/actuator/health](http://localhost:8080/api/v1/actuator/health) (Database, Redis, RabbitMQ, Disk)
-  - Prometheus metrics: [http://localhost:8080/api/v1/actuator/prometheus](http://localhost:8080/api/v1/actuator/prometheus)
-  - Metrics index: [http://localhost:8080/api/v1/actuator/metrics](http://localhost:8080/api/v1/actuator/metrics)
-- **Prometheus:** [http://localhost:9090](http://localhost:9090)
+- **Gateway & Actuator Endpoints:**
+  - Gateway Healthcheck: [http://localhost/health](http://localhost/health)
+  - API Healthcheck: [http://localhost/api/v1/actuator/health](http://localhost/api/v1/actuator/health)
+  - Prometheus metrics (internal scraping only; blocked externally with `403 Forbidden` at Nginx): `http://host.docker.internal:8080/api/v1/actuator/prometheus`
+- **Prometheus (via Nginx):** [http://localhost/prometheus/](http://localhost/prometheus/)
   - Automatic 5s scrape configured in `docker/prometheus/prometheus.yml`.
-- **Grafana:** [http://localhost:3000](http://localhost:3000) (User: `admin` / Password: `admin`)
+- **Grafana (via Nginx):** [http://localhost/grafana/](http://localhost/grafana/) (User: `admin` / Password: `admin`)
   - **Pre-provisioned DataSources:** Both **Prometheus** (`uid: prometheus`) and **PostgreSQL** (`uid: postgres`) are automatically configured via `docker/grafana/provisioning/datasources/prometheus.yml`.
-  - **Pre-provisioned Dashboard:** Open [http://localhost:3000/d/foodrush-overview](http://localhost:3000/d/foodrush-overview) (**FoodRush API — Painel de Negócio & Observabilidade**) to view pre-built charts for:
+  - **Pre-provisioned Dashboard:** Open [http://localhost/grafana/d/foodrush-overview](http://localhost/grafana/d/foodrush-overview) (**FoodRush API — Painel de Negócio & Observabilidade**) to view pre-built charts for:
     - Total Users, Restaurants, Menu Items, Orders, and Gross Sales Volume (R$).
     - Users by Role (`CLIENT`, `RESTAURANT`, `COURIER`, `ADMIN`) and Orders by Status (`CREATED`, `PAID`, `PREPARING`, `READY`, `IN_ROUTE`, `DELIVERED`, `CANCELED`).
     - Open vs Closed Restaurants and Restaurant Performance Table.

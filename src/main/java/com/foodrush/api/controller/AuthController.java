@@ -162,7 +162,10 @@ public class AuthController {
   public ResponseEntity<AuthResponseDTO> refreshToken(
     @RequestBody @Valid RefreshTokenRequestDTO requestDTO
   ) {
-    if (!tokenProvider.validateToken(requestDTO.refreshToken())) {
+    if (
+      !tokenProvider.validateToken(requestDTO.refreshToken()) ||
+      tokenProvider.isAccessToken(requestDTO.refreshToken())
+    ) {
       throw new BusinessException("Refresh token inválido ou expirado.");
     }
 

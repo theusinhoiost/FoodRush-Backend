@@ -48,9 +48,9 @@ public record UserRequestDTO(
   String cpf,
 
   @Schema(
-    description = "Access role assigned to the user",
+    description = "Access role assigned to the user (ADMIN cannot be self-registered)",
     example = "CLIENT",
-    allowableValues = { "CLIENT", "RESTAURANT", "COURIER", "ADMIN" }
+    allowableValues = { "CLIENT", "RESTAURANT", "COURIER" }
   )
   @NotBlank(message = "O perfil (role) é obrigatório")
   @Size(max = 20, message = "O perfil deve ter no máximo 20 caracteres")
