@@ -233,12 +233,26 @@ foodrush-api/
    - **Prometheus:** Internal only (Web UI via Nginx: `http://localhost/prometheus/`)
    - **Grafana:** Internal only (Web UI via Nginx: `http://localhost/grafana/` — `admin`/`admin`)
 
-4. **Build and Run the Application:**
+4. **Build and Run the Application (Locally):**
    ```bash
    ./mvnw clean compile
    ./mvnw spring-boot:run
    ```
    Or run the main class `com.foodrush.api.ApiApplication` directly from your IDE.
+
+5. **Build and Run with Docker (Production / Cloud Deployment):**
+   A multi-stage `Dockerfile` with **Java 25 (Eclipse Temurin)** is provided for production deployment (supporting PaaS such as Railway or self-hosted platforms like Coolify):
+   ```bash
+   # Build the container image
+   docker build -t foodrush-api:latest .
+
+   # Run container with environment variables
+   docker run -d --name foodrush-api \
+     -p 8080:8080 \
+     --env-file .env \
+     foodrush-api:latest
+   ```
+   *Features container-aware JVM ergonomics (`-XX:+UseContainerSupport -XX:MaxRAM=384m -Xms128m -Xmx256m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`) for low memory footprint and cost efficiency.*
 
 ## Interactive API Documentation (Swagger / OpenAPI)
 
