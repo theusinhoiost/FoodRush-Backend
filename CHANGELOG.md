@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dynamic CORS Origin Pattern Resolution (`config/SecurityConfig`, `application.yml`, `.env.example`):**
+  - Configured `cors.allowed-origin-patterns` (`CORS_ALLOWED_ORIGIN_PATTERNS`) to automatically allow web frontends from Vercel (`https://*.vercel.app`) and Railway (`https://*.up.railway.app`) in addition to local development origins (`http://localhost:*`, `http://127.0.0.1:*`), eliminating cross-origin resource sharing errors when connecting cloud frontends.
 - **Redis Password Authentication Support (`application.yml`, `.env.example`):**
   - Added support for `spring.data.redis.password` (`${REDIS_PASSWORD:}`) to support managed Redis cloud instances (such as Railway or cloud providers requiring auth) while remaining optional for local Docker Compose development.
 - **Dynamic Cloud Server Port Resolution (`application.yml`):**
