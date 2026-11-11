@@ -36,7 +36,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-  @Value("${cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*,https://*.vercel.app,https://*.up.railway.app}")
+  @Value("${cors.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*,https://food-rush-web.vercel.app,https://*.vercel.app,https://foodrush-backend-production-b263bc5d.up.railway.app}")
   private String allowedOriginPatterns;
 
   private final JwtTokenProvider tokenProvider;
