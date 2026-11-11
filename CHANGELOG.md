@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Explicit Production Vercel Origin Authorization (`config/SecurityConfig`, `application.yml`, `.env.example`):**
+  - Added explicit CORS authorization for `https://food-rush-web.vercel.app` in `cors.allowed-origin-patterns` alongside `localhost` and `railway` domains.
 - **Dynamic CORS Origin Pattern Resolution (`config/SecurityConfig`, `application.yml`, `.env.example`):**
   - Configured `cors.allowed-origin-patterns` (`CORS_ALLOWED_ORIGIN_PATTERNS`) to automatically allow web frontends from Vercel (`https://*.vercel.app`) and Railway (`https://*.up.railway.app`) in addition to local development origins (`http://localhost:*`, `http://127.0.0.1:*`), eliminating cross-origin resource sharing errors when connecting cloud frontends.
 - **Redis Password Authentication Support (`application.yml`, `.env.example`):**
