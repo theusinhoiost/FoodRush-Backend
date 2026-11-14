@@ -138,8 +138,14 @@ public class SecurityConfig {
       )
       .authorizeHttpRequests(auth ->
         auth
-          // 1. Rotas públicas de autenticação
-          .requestMatchers("/auth/**", "/api/v1/auth/**", "/error")
+          // 1. Rotas públicas de autenticação e webhooks de pagamento
+          .requestMatchers(
+            "/auth/**",
+            "/api/v1/auth/**",
+            "/error",
+            "/payments/webhook",
+            "/api/v1/payments/webhook"
+          )
           .permitAll()
           // 2. Consulta pública de restaurantes, cardápios e geocodificação de endereços
           .requestMatchers(

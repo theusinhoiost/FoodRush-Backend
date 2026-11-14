@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mercado Pago Checkout Transparente (Pix) & Webhook Integration (`com.mercadopago:sdk-java:3.7.0`, `service/PaymentService`, `controller/PaymentController`, `db/migration/V4__create_payments_table.sql`):**
+  - Integrated official **Mercado Pago Java SDK 3.7.0** (`PaymentClient`) for Checkout Transparente Pix payments.
+  - Added database migration `V4__create_payments_table.sql` with foreign key relationship to `orders`, tracking `payment_method`, `status`, `amount`, Pix Copia e Cola `qr_code`, base64 image `qr_code_base64`, and Mercado Pago `external_id`.
+  - Added REST endpoints in `PaymentController`:
+    - `POST /api/v1/payments/orders/{orderId}/pix`: Generates Pix payment for orders in `CREATED` status with 30-minute expiration, returns Pix payload and QR code base64 image, and reuses pending payments idempotently.
+    - `GET /api/v1/payments/orders/{orderId}`: Retrieves payment status and QR code with authorization checks (Customer, Restaurant Owner, or Admin).
+    - `POST|GET /api/v1/payments/webhook`: Public webhook / IPN callback endpoint receiving asynchronous payment updates.
+  - Implemented automatic order lifecycle progression in `PaymentService`: when Mercado Pago marks a payment as `approved`, the associated Order is automatically transitioned to `PAID`, triggering the RabbitMQ `order.paid` event to kitchen and timeline queues.
+  - Added configuration properties in `application.yml` and `.env.example` (`MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`, `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADOPAGO_NOTIFICATION_URL`).
+  - Added full unit test suites `PaymentServiceTest` and `PaymentControllerTest` covering Pix creation, validation, authorization, and webhook status transitions (65 tests passing across the project).
 - **Explicit Production Vercel Origin Authorization (`config/SecurityConfig`, `application.yml`, `.env.example`):**
   - Added explicit CORS authorization for `https://food-rush-web.vercel.app` in `cors.allowed-origin-patterns` alongside `localhost` and `railway` domains.
 - **Dynamic CORS Origin Pattern Resolution (`config/SecurityConfig`, `application.yml`, `.env.example`):**

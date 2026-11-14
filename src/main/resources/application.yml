@@ -57,6 +57,12 @@ opencage:
   api:
     key: ${OPENCAGE_API_KEY:}
 
+mercadopago:
+  access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
+  public-key: ${MERCADOPAGO_PUBLIC_KEY:}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
+  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
+
 jwt:
   secret: ${JWT_SECRET:minhasenhasecretasuperseguraparajwtfoodrushapi2026jwtkeyhs512secretkey512bitsminimo}
   access-expiration: ${JWT_ACCESS_EXPIRATION:900000}
