@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import com.foodrush.api.dto.request.CardPaymentRequestDTO;
 import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
 import com.foodrush.api.enums.OrderStatus;
@@ -140,7 +141,49 @@ class PaymentServiceTest {
   }
 
   @Test
-  @DisplayName("Should return existing pending Pix payment if already generated")
+  @DisplayName("Should create Credit Card payment successfully and transition order to PAID when approved")
+  void shouldCreateCardPaymentSuccessfully() throws Exception {
+    when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+    com.mercadopago.resources.payment.Payment mpPayment = mock(com.mercadopago.resources.payment.Payment.class);
+    when(mpPayment.getId()).thenReturn(987654321L);
+    when(mpPayment.getStatus()).thenReturn("approved");
+
+    com.mercadopago.resources.payment.PaymentCard card = mock(com.mercadopago.resources.payment.PaymentCard.class);
+    when(card.getLastFourDigits()).thenReturn("1234");
+    when(mpPayment.getCard()).thenReturn(card);
+
+    when(paymentClient.create(any(PaymentCreateRequest.class))).thenReturn(mpPayment);
+
+    Payment savedEntity = Payment.builder()
+        .id(UUID.randomUUID())
+        .order(order)
+        .externalId("987654321")
+        .paymentMethod(PaymentMethod.CREDIT_CARD)
+        .status(PaymentStatus.APPROVED)
+        .amount(order.getTotal())
+        .installments(2)
+        .cardLastFour("1234")
+        .cardBrand("master")
+        .createdAt(OffsetDateTime.now())
+        .build();
+
+    when(paymentRepository.save(any(Payment.class))).thenReturn(savedEntity);
+
+    CardPaymentRequestDTO request = new CardPaymentRequestDTO("token-123", 2, "master", null);
+    PaymentResponseDTO response = paymentService.createCardPayment(order.getId(), customer.getEmail(), request);
+
+    assertThat(response).isNotNull();
+    assertThat(response.externalId()).isEqualTo("987654321");
+    assertThat(response.paymentMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+    assertThat(response.status()).isEqualTo(PaymentStatus.APPROVED);
+    assertThat(response.installments()).isEqualTo(2);
+    assertThat(response.cardLastFour()).isEqualTo("1234");
+    assertThat(response.cardBrand()).isEqualTo("master");
+
+    verify(paymentRepository, times(1)).save(any(Payment.class));
+    verify(orderService, times(1)).updateStatus(order.getId(), OrderStatus.PAID);
+  }
   void shouldReturnExistingPendingPayment() {
     when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
 

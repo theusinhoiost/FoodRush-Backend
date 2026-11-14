@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.foodrush.api.dto.request.CardPaymentRequestDTO;
 import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
 import com.foodrush.api.enums.PaymentMethod;
@@ -13,6 +14,7 @@ import java.math.BigDecimal;
 import java.security.Principal;
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,9 @@ class PaymentControllerTest {
         PaymentMethod.PIX,
         PaymentStatus.PENDING,
         new BigDecimal("59.90"),
+        null,
+        null,
+        null,
         "000201...",
         "base64...",
         "https://ticket.url",
@@ -65,6 +70,40 @@ class PaymentControllerTest {
   }
 
   @Test
+  @DisplayName("POST /payments/orders/{orderId}/card should return 201 Created with card payment details")
+  void shouldCreateCardPaymentSuccessfully() {
+    UUID orderId = UUID.randomUUID();
+    Principal principal = () -> "cliente@email.com";
+    CardPaymentRequestDTO request = new CardPaymentRequestDTO("token-123", 1, "visa", null);
+
+    PaymentResponseDTO responseDTO = new PaymentResponseDTO(
+        UUID.randomUUID(),
+        orderId,
+        "987654",
+        PaymentMethod.CREDIT_CARD,
+        PaymentStatus.APPROVED,
+        new BigDecimal("59.90"),
+        1,
+        "4242",
+        "visa",
+        null,
+        null,
+        null,
+        OffsetDateTime.now()
+    );
+
+    when(paymentService.createCardPayment(eq(orderId), eq("cliente@email.com"), any(CardPaymentRequestDTO.class)))
+        .thenReturn(responseDTO);
+
+    ResponseEntity<PaymentResponseDTO> response = paymentController.createCardPayment(orderId, request, principal);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().paymentMethod()).isEqualTo(PaymentMethod.CREDIT_CARD);
+    assertThat(response.getBody().cardLastFour()).isEqualTo("4242");
+  }
+
+  @Test
   @DisplayName("GET /payments/orders/{orderId} should return 200 OK with payment details")
   void shouldGetPaymentByOrderId() {
     UUID orderId = UUID.randomUUID();
@@ -80,6 +119,9 @@ class PaymentControllerTest {
         PaymentMethod.PIX,
         PaymentStatus.APPROVED,
         new BigDecimal("59.90"),
+        null,
+        null,
+        null,
         "000201...",
         "base64...",
         "https://ticket.url",
@@ -93,6 +135,18 @@ class PaymentControllerTest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().status()).isEqualTo(PaymentStatus.APPROVED);
+  }
+
+  @Test
+  @DisplayName("GET /payments/config should return 200 OK with public key")
+  void shouldGetPaymentConfig() {
+    when(paymentService.getPublicKey()).thenReturn("TEST-PUBLIC-KEY");
+
+    ResponseEntity<Map<String, String>> response = paymentController.getPaymentConfig();
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().get("publicKey")).isEqualTo("TEST-PUBLIC-KEY");
   }
 
   @Test

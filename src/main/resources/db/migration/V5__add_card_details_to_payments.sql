@@ -1,0 +1,4 @@
+ALTER TABLE payments
+    ADD COLUMN IF NOT EXISTS installments INT,
+    ADD COLUMN IF NOT EXISTS card_last_four VARCHAR(4),
+    ADD COLUMN IF NOT EXISTS card_brand VARCHAR(30);
