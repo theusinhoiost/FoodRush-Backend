@@ -59,15 +59,22 @@ public class PaymentService {
       return toDTO(existingPending.get());
     }
 
+    String customerName = order.getCustomer().getName() != null ? order.getCustomer().getName().trim() : "Cliente";
+    String[] nameParts = customerName.split("\\s+", 2);
+    String firstName = nameParts[0];
+    String lastName = nameParts.length > 1 ? nameParts[1] : firstName;
+
     PaymentPayerRequest.PaymentPayerRequestBuilder payerBuilder = PaymentPayerRequest.builder()
         .email(order.getCustomer().getEmail())
-        .firstName(order.getCustomer().getName());
+        .firstName(firstName)
+        .lastName(lastName);
 
     if (order.getCustomer().getCpf() != null && !order.getCustomer().getCpf().isBlank()) {
+      String cleanCpf = order.getCustomer().getCpf().replaceAll("\\D", "");
       payerBuilder.identification(
           IdentificationRequest.builder()
               .type("CPF")
-              .number(order.getCustomer().getCpf())
+              .number(cleanCpf)
               .build()
       );
     }
@@ -87,8 +94,12 @@ public class PaymentService {
     com.mercadopago.resources.payment.Payment mpPayment;
     try {
       mpPayment = paymentClient.create(requestBuilder.build());
-    } catch (MPException | MPApiException e) {
-      log.error("Mercado Pago API error creating Pix payment for order {}: {}", orderId, e.getMessage(), e);
+    } catch (MPApiException e) {
+      String mpError = e.getApiResponse() != null ? e.getApiResponse().getContent() : e.getMessage();
+      log.error("Mercado Pago API error creating Pix payment for order {}: {} (Status {})", orderId, mpError, e.getStatusCode(), e);
+      throw new BusinessException("Mercado Pago API error (" + e.getStatusCode() + "): " + mpError);
+    } catch (MPException e) {
+      log.error("Mercado Pago SDK error creating Pix payment for order {}: {}", orderId, e.getMessage(), e);
       throw new BusinessException("Failed to generate Pix payment with Mercado Pago: " + e.getMessage());
     }
 
