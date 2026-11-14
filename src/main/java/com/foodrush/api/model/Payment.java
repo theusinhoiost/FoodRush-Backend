@@ -43,6 +43,15 @@ public class Payment {
   @Column(name = "amount", precision = 10, scale = 2, nullable = false)
   private BigDecimal amount;
 
+  @Column(name = "installments")
+  private Integer installments;
+
+  @Column(name = "card_last_four", length = 4)
+  private String cardLastFour;
+
+  @Column(name = "card_brand", length = 30)
+  private String cardBrand;
+
   @Column(name = "qr_code", columnDefinition = "TEXT")
   private String qrCode;
 

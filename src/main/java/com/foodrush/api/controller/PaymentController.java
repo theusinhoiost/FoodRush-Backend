@@ -1,8 +1,11 @@
 package com.foodrush.api.controller;
 
+import com.foodrush.api.dto.request.CardPaymentRequestDTO;
 import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
 import com.foodrush.api.service.PaymentService;
+import jakarta.validation.Valid;
+import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -57,6 +60,41 @@ public class PaymentController {
   ) {
     PaymentResponseDTO response = paymentService.createPixPayment(orderId, principal.getName());
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  @PostMapping("/orders/{orderId}/card")
+  @PreAuthorize("hasAnyRole('CLIENT', 'ADMIN')")
+  @Operation(
+      summary = "Pay Order with Credit Card",
+      description = "Processes a tokenized credit card payment with Mercado Pago for an order in CREATED state.",
+      security = @SecurityRequirement(name = "bearerAuth")
+  )
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "201", description = "Card payment processed successfully",
+          content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaymentResponseDTO.class))),
+      @ApiResponse(responseCode = "400", description = "Order is not in valid status or payment failed",
+          content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+      @ApiResponse(responseCode = "403", description = "User is not owner of the order",
+          content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+      @ApiResponse(responseCode = "404", description = "Order not found",
+          content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+  })
+  public ResponseEntity<PaymentResponseDTO> createCardPayment(
+      @PathVariable UUID orderId,
+      @Valid @RequestBody CardPaymentRequestDTO request,
+      Principal principal
+  ) {
+    PaymentResponseDTO response = paymentService.createCardPayment(orderId, principal.getName(), request);
+    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+  }
+
+  @GetMapping("/config")
+  @Operation(
+      summary = "Get Public Payment Configuration",
+      description = "Retrieves public credentials needed by frontend SDKs (e.g. Mercado Pago Public Key). Public endpoint."
+  )
+  public ResponseEntity<Map<String, String>> getPaymentConfig() {
+    return ResponseEntity.ok(Map.of("publicKey", paymentService.getPublicKey() != null ? paymentService.getPublicKey() : ""));
   }
 
   @GetMapping("/orders/{orderId}")

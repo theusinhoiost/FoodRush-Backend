@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mercado Pago Checkout Transparente (Credit Card) (`service/PaymentService`, `controller/PaymentController`, `db/migration/V5__add_card_details_to_payments.sql`):**
+  - Added support for Credit Card payments with tokenized cards and installments (`PaymentMethod.CREDIT_CARD`).
+  - Added migration `V5__add_card_details_to_payments.sql` storing `installments`, `card_last_four`, and `card_brand`.
+  - Added REST endpoint `POST /api/v1/payments/orders/{orderId}/card` validating order ownership and processing card charge via Mercado Pago SDK.
+  - Added public configuration endpoint `GET /api/v1/payments/config` returning the active `publicKey` for frontend SDK initialization.
+  - Added unit test coverage in `PaymentServiceTest` and `PaymentControllerTest` (67 tests passing).
 - **Mercado Pago Checkout Transparente (Pix) & Webhook Integration (`com.mercadopago:sdk-java:3.7.0`, `service/PaymentService`, `controller/PaymentController`, `db/migration/V4__create_payments_table.sql`):**
   - Integrated official **Mercado Pago Java SDK 3.7.0** (`PaymentClient`) for Checkout Transparente Pix payments.
   - Added database migration `V4__create_payments_table.sql` with foreign key relationship to `orders`, tracking `payment_method`, `status`, `amount`, Pix Copia e Cola `qr_code`, base64 image `qr_code_base64`, and Mercado Pago `external_id`.
