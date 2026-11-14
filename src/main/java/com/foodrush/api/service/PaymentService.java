@@ -1,5 +1,6 @@
 package com.foodrush.api.service;
 
+import com.foodrush.api.dto.request.CardPaymentRequestDTO;
 import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
 import com.foodrush.api.enums.OrderStatus;
@@ -38,6 +39,13 @@ public class PaymentService {
 
   @Value("${mercadopago.notification-url:}")
   private String notificationUrl;
+
+  @Value("${mercadopago.public-key:}")
+  private String publicKey;
+
+  public String getPublicKey() {
+    return publicKey;
+  }
 
   @Transactional
   public PaymentResponseDTO createPixPayment(UUID orderId, String authenticatedCustomerEmail) {
@@ -130,6 +138,98 @@ public class PaymentService {
     Payment savedPayment = paymentRepository.save(payment);
     log.info("Pix payment generated successfully with ID {} (MP ID: {}) for Order {}",
         savedPayment.getId(), savedPayment.getExternalId(), order.getId());
+
+    if (paymentStatus == PaymentStatus.APPROVED) {
+      orderService.updateStatus(order.getId(), OrderStatus.PAID);
+    }
+
+    return toDTO(savedPayment);
+  }
+
+  @Transactional
+  public PaymentResponseDTO createCardPayment(UUID orderId, String authenticatedCustomerEmail, CardPaymentRequestDTO request) {
+    Order order = orderRepository.findById(orderId)
+        .orElseThrow(() -> new BusinessException("Order not found with ID: " + orderId));
+
+    if (!order.getCustomer().getEmail().equalsIgnoreCase(authenticatedCustomerEmail)) {
+      throw new AccessDeniedException("User is not authorized to create payment for this order");
+    }
+
+    if (order.getStatus() != OrderStatus.CREATED) {
+      throw new BusinessException("Cannot initiate payment: Order is in status '" + order.getStatus() + "'");
+    }
+
+    String customerName = order.getCustomer().getName() != null ? order.getCustomer().getName().trim() : "Cliente";
+    String[] nameParts = customerName.split("\\s+", 2);
+    String firstName = nameParts[0];
+    String lastName = nameParts.length > 1 ? nameParts[1] : firstName;
+
+    PaymentPayerRequest.PaymentPayerRequestBuilder payerBuilder = PaymentPayerRequest.builder()
+        .email(order.getCustomer().getEmail())
+        .firstName(firstName)
+        .lastName(lastName);
+
+    if (order.getCustomer().getCpf() != null && !order.getCustomer().getCpf().isBlank()) {
+      String cleanCpf = order.getCustomer().getCpf().replaceAll("\\D", "");
+      payerBuilder.identification(
+          IdentificationRequest.builder()
+              .type("CPF")
+              .number(cleanCpf)
+              .build()
+      );
+    }
+
+    PaymentCreateRequest.PaymentCreateRequestBuilder requestBuilder = PaymentCreateRequest.builder()
+        .transactionAmount(order.getTotal())
+        .token(request.token())
+        .description("FoodRush Pedido #" + order.getId())
+        .installments(request.installments())
+        .paymentMethodId(request.paymentMethodId())
+        .externalReference(order.getId().toString())
+        .payer(payerBuilder.build());
+
+    if (request.issuerId() != null && !request.issuerId().isBlank()) {
+      requestBuilder.issuerId(request.issuerId());
+    }
+
+    if (notificationUrl != null && !notificationUrl.isBlank()) {
+      requestBuilder.notificationUrl(notificationUrl);
+    }
+
+    com.mercadopago.resources.payment.Payment mpPayment;
+    try {
+      mpPayment = paymentClient.create(requestBuilder.build());
+    } catch (MPApiException e) {
+      String mpError = e.getApiResponse() != null ? e.getApiResponse().getContent() : e.getMessage();
+      log.error("Mercado Pago API error creating Card payment for order {}: {} (Status {})", orderId, mpError, e.getStatusCode(), e);
+      throw new BusinessException("Mercado Pago API error (" + e.getStatusCode() + "): " + mpError);
+    } catch (MPException e) {
+      log.error("Mercado Pago SDK error creating Card payment for order {}: {}", orderId, e.getMessage(), e);
+      throw new BusinessException("Failed to process Card payment with Mercado Pago: " + e.getMessage());
+    }
+
+    PaymentStatus paymentStatus = mapMpStatus(mpPayment.getStatus());
+
+    String lastFour = null;
+    String brand = request.paymentMethodId();
+    if (mpPayment.getCard() != null) {
+      lastFour = mpPayment.getCard().getLastFourDigits();
+    }
+
+    Payment payment = Payment.builder()
+        .order(order)
+        .externalId(mpPayment.getId() != null ? mpPayment.getId().toString() : null)
+        .paymentMethod(PaymentMethod.CREDIT_CARD)
+        .status(paymentStatus)
+        .amount(order.getTotal())
+        .installments(request.installments())
+        .cardLastFour(lastFour)
+        .cardBrand(brand)
+        .build();
+
+    Payment savedPayment = paymentRepository.save(payment);
+    log.info("Credit card payment processed with ID {} (MP ID: {}, Status: {}) for Order {}",
+        savedPayment.getId(), savedPayment.getExternalId(), paymentStatus, order.getId());
 
     if (paymentStatus == PaymentStatus.APPROVED) {
       orderService.updateStatus(order.getId(), OrderStatus.PAID);
@@ -239,6 +339,9 @@ public class PaymentService {
         payment.getPaymentMethod(),
         payment.getStatus(),
         payment.getAmount(),
+        payment.getInstallments(),
+        payment.getCardLastFour(),
+        payment.getCardBrand(),
         payment.getQrCode(),
         payment.getQrCodeBase64(),
         payment.getTicketUrl(),

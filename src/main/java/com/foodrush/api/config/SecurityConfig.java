@@ -144,7 +144,9 @@ public class SecurityConfig {
             "/api/v1/auth/**",
             "/error",
             "/payments/webhook",
-            "/api/v1/payments/webhook"
+            "/api/v1/payments/webhook",
+            "/payments/config",
+            "/api/v1/payments/config"
           )
           .permitAll()
           // 2. Consulta pública de restaurantes, cardápios e geocodificação de endereços

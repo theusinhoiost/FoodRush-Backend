@@ -7,35 +7,44 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@Schema(description = "Payment details including Mercado Pago Pix QR code and transaction status")
+@Schema(description = "Payment details response")
 public record PaymentResponseDTO(
-  @Schema(description = "Payment unique identifier", example = "e5d0f436-ed01-45fd-960d-349ffd19e4d5")
+  @Schema(description = "Internal payment unique ID", example = "c81d4e2e-bcf2-11e6-869b-7df92533c26b")
   UUID id,
 
-  @Schema(description = "Associated order identifier", example = "39c7f9f7-5ad8-406b-b522-814386ceceb7")
+  @Schema(description = "Associated order ID", example = "a11d4e2e-bcf2-11e6-869b-7df92533c26b")
   UUID orderId,
 
-  @Schema(description = "External Mercado Pago transaction identifier", example = "12345678901")
+  @Schema(description = "Mercado Pago external payment ID", example = "12345678901")
   String externalId,
 
-  @Schema(description = "Payment method", example = "PIX")
+  @Schema(description = "Payment method used", example = "PIX")
   PaymentMethod paymentMethod,
 
-  @Schema(description = "Payment current processing status", example = "PENDING")
+  @Schema(description = "Current payment status", example = "PENDING")
   PaymentStatus status,
 
-  @Schema(description = "Total transaction amount", example = "45.90")
+  @Schema(description = "Total transaction amount", example = "49.90")
   BigDecimal amount,
 
-  @Schema(description = "Pix Copia e Cola code string for user payment", example = "00020126580014br.gov.bcb.pix...")
+  @Schema(description = "Number of card installments", example = "1")
+  Integer installments,
+
+  @Schema(description = "Last four digits of credit card", example = "1234")
+  String cardLastFour,
+
+  @Schema(description = "Credit card brand name", example = "master")
+  String cardBrand,
+
+  @Schema(description = "Pix Copia e Cola payload", example = "00020126580014br.gov.bcb.pix...")
   String qrCode,
 
-  @Schema(description = "Pix QR Code encoded as base64 image PNG", example = "iVBORw0KGgoAAAANSUhEUgAAA...")
+  @Schema(description = "Base64 encoded QR Code image PNG", example = "iVBORw0KGgoAAAANSUhEUgAA...")
   String qrCodeBase64,
 
-  @Schema(description = "Ticket URL hosted by Mercado Pago", example = "https://www.mercadopago.com.br/payments/12345678901/ticket")
+  @Schema(description = "Mercado Pago ticket payment URL")
   String ticketUrl,
 
-  @Schema(description = "Creation timestamp", example = "2026-11-13T23:30:00Z")
+  @Schema(description = "Payment creation timestamp")
   OffsetDateTime createdAt
 ) {}
