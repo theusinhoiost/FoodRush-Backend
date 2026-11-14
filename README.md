@@ -19,6 +19,8 @@ RESTful food delivery API (**FoodRush**), built with **Java 25** and **Spring Bo
   - JSON Web Token — JJWT `0.12.6` (`jjwt-api`, `jjwt-impl`, `jjwt-jackson`) with `HS512` signature and `BCrypt` password hashing
 - **API Documentation (OpenAPI / Swagger):**
   - SpringDoc OpenAPI `2.8.5` (`springdoc-openapi-starter-webmvc-ui`) with HTTP Bearer JWT authentication support
+- **Payment Processing (Mercado Pago):**
+  - Mercado Pago Official Java SDK `3.7.0` (`com.mercadopago:sdk-java`) for Checkout Transparente (Pix instant payments, QR code generation, and automated Webhook / IPN processing)
 - **Validation & Error Handling:**
   - Jakarta Bean Validation (`spring-boot-starter-validation`) + custom constraint validators (`@ValidCPF`, `@ValidCNPJ`, `@ValidPhone`, `@ValidCEP`)
   - Standardized responses using **RFC 7807 (`ProblemDetail`)** via `GlobalExceptionHandler`
@@ -185,6 +187,7 @@ foodrush-api/
 - **`menu_items` & `menu_item_sizes`**: Catalog items and size variations with optimistic lock (`version`) and pessimistic lock query (`PESSIMISTIC_WRITE`) to prevent overselling.
 - **`complement_groups` & `complement_items`**: Add-on groups with min/max selection quantities and requirement flags.
 - **`orders`, `order_items` & `order_item_complements`**: Orders with idempotency key (`idempotency_key`), consolidated financial totals (`subtotal`, `delivery_fee`, `total`), line items, and historical add-on price snapshots.
+- **`payments`**: Payment records associated with orders (`order_id`), provider external transaction ID (`external_id`), payment method (`PIX`), payment status (`PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `REFUNDED`), financial amount, Pix Copia e Cola string (`qr_code`), base64 QR code image (`qr_code_base64`), and ticket URL.
 
 ## Configuration and Setup
 
@@ -220,6 +223,10 @@ foodrush-api/
    | `JWT_SECRET` | *(64-byte key)* | Secret key for signing `HS512` JWT tokens |
    | `JWT_ACCESS_EXPIRATION` | `900000` | Access token TTL in ms (15 minutes) |
    | `JWT_REFRESH_EXPIRATION` | `604800000` | Refresh token TTL in ms (7 days) |
+   | `MERCADOPAGO_ACCESS_TOKEN` | *(optional)* | Mercado Pago Access Token (`APP_USR-...`) |
+   | `MERCADOPAGO_PUBLIC_KEY` | *(optional)* | Mercado Pago Public Key (`APP_USR-...`) |
+   | `MERCADOPAGO_WEBHOOK_SECRET` | *(optional)* | Mercado Pago Webhook Secret for signature validation |
+   | `MERCADOPAGO_NOTIFICATION_URL` | *(optional)* | Public webhook callback URL for Mercado Pago notifications |
 
 3. **Start Infrastructure Services with Docker Compose:**
    ```bash
@@ -314,6 +321,14 @@ Once the application is running, access Swagger UI through the Nginx Gateway (or
 | `GET` | `/api/v1/orders/customer/{customerId}` | Retrieve customer order history sorted by most recent | Bearer JWT |
 | `GET` | `/api/v1/orders/restaurant/{restaurantId}` | Filter restaurant orders by lifecycle status (`?status=PAID`, etc.) | Bearer JWT |
 | `PATCH`| `/api/v1/orders/{id}/status` | Advance order lifecycle and publish event to RabbitMQ | Bearer JWT |
+
+### Payments & Checkout Transparente (`/api/v1/payments`)
+
+| Method | Endpoint | Description | Auth |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/payments/orders/{orderId}/pix` | Generate Mercado Pago Pix payment, QR code base64, and Copia e Cola payload for an order in `CREATED` status | Bearer JWT (`CLIENT`, `ADMIN`) |
+| `GET` | `/api/v1/payments/orders/{orderId}` | Retrieve current payment details, status, and QR code for an order | Bearer JWT (`CLIENT`, `RESTAURANT`, `ADMIN`) |
+| `POST` / `GET` | `/api/v1/payments/webhook` | Asynchronous webhook / IPN callback from Mercado Pago; automatically transitions order to `PAID` upon approval and publishes RabbitMQ event | Public |
 
 ## Event-Driven Messaging (RabbitMQ)
 
