@@ -32,4 +32,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
   Optional<Order> findByIdWithDetails(@Param("id") UUID id);
 
   long countByStatus(OrderStatus status);
+
+  @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status != com.foodrush.api.enums.OrderStatus.CANCELED")
+  java.math.BigDecimal sumGrossVolume();
 }

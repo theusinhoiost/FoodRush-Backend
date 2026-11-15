@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Superadmin Management & Analytics (`service/AdminService`, `controller/AdminController`):**
+  - Added Superadmin endpoints under `/api/v1/admin` secured with `@PreAuthorize("hasRole('ADMIN')")`.
+  - Added `GET /api/v1/admin/restaurants` returning all registered restaurants, owner details, Mercado Pago Connect status, and commission rates.
+  - Added `PATCH /api/v1/admin/restaurants/{id}/commission` allowing administrators to adjust individual restaurant commission percentages (0.00% - 100.00%).
+  - Added `GET /api/v1/admin/users` and `PATCH /api/v1/admin/users/{id}/toggle-status` for administrative user and customer account oversight.
+  - Added `GET /api/v1/admin/metrics` calculating platform Gross Merchandise Value (GMV), total FoodRush split fees retained, connected restaurant count, and order volumes.
+  - Added comprehensive test suites in `AdminServiceTest` and `AdminControllerTest` (77 tests passing).
+- **Mercado Pago Connect Split Payment Integration (`db/migration/V7__add_mp_split_and_commission_to_restaurants.sql`, `service/PaymentService`, `controller/PaymentController`):**
+  - Added migration `V7` introducing `commission_rate` (default 10.00%), `mp_collector_id`, `mp_access_token`, `mp_refresh_token`, and `mp_connected` to `restaurants`.
+  - Added automatic split payment application fee (`requestBuilder.applicationFee(marketplaceFee)`) to Pix and Credit Card payment requests.
+  - Added OAuth Connect endpoints `GET /api/v1/payments/connect/authorize-url`, `POST /api/v1/payments/connect/callback`, and `DELETE /api/v1/payments/connect/disconnect/{restaurantId}` for restaurant partners.
+
 ### Fixed
 - **Order Status Enum Alignment & Database Migration (`enums/OrderStatus`, `service/OrderService`, `db/migration/V6__fix_confirmed_order_status.sql`):**
   - Added `CONFIRMED` to `OrderStatus` enum and exhaustive switch transition validation in `OrderService` to prevent `500 Internal Server Error` on customer orders endpoint.

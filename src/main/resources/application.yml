@@ -60,6 +60,9 @@ opencage:
 mercadopago:
   access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
   public-key: ${MERCADOPAGO_PUBLIC_KEY:}
+  client-id: ${MERCADOPAGO_CLIENT_ID:}
+  client-secret: ${MERCADOPAGO_CLIENT_SECRET:}
+  redirect-uri: ${MERCADOPAGO_REDIRECT_URI:https://food-rush-web.vercel.app/profile}
   webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
   notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
 

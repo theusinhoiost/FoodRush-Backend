@@ -2,6 +2,8 @@ package com.foodrush.api.service;
 
 import com.foodrush.api.dto.request.CardPaymentRequestDTO;
 import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
+import com.foodrush.api.dto.request.MpConnectCallbackRequestDTO;
+import com.foodrush.api.dto.response.AdminRestaurantResponseDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
 import com.foodrush.api.enums.OrderStatus;
 import com.foodrush.api.enums.PaymentMethod;
@@ -9,14 +11,18 @@ import com.foodrush.api.enums.PaymentStatus;
 import com.foodrush.api.exception.BusinessException;
 import com.foodrush.api.model.Order;
 import com.foodrush.api.model.Payment;
+import com.foodrush.api.model.Restaurant;
 import com.foodrush.api.repository.OrderRepository;
 import com.foodrush.api.repository.PaymentRepository;
+import com.foodrush.api.repository.RestaurantRepository;
 import com.mercadopago.client.common.IdentificationRequest;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.payment.PaymentCreateRequest;
 import com.mercadopago.client.payment.PaymentPayerRequest;
 import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.exceptions.MPException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +40,7 @@ public class PaymentService {
 
   private final PaymentRepository paymentRepository;
   private final OrderRepository orderRepository;
+  private final RestaurantRepository restaurantRepository;
   private final OrderService orderService;
   private final PaymentClient paymentClient;
 
@@ -42,6 +49,12 @@ public class PaymentService {
 
   @Value("${mercadopago.public-key:}")
   private String publicKey;
+
+  @Value("${mercadopago.client-id:}")
+  private String clientId;
+
+  @Value("${mercadopago.redirect-uri:https://food-rush-web.vercel.app/profile}")
+  private String redirectUri;
 
   public String getPublicKey() {
     return publicKey;
@@ -94,6 +107,19 @@ public class PaymentService {
         .dateOfExpiration(OffsetDateTime.now().plusMinutes(30))
         .externalReference(order.getId().toString())
         .payer(payerBuilder.build());
+
+    if (order.getRestaurant() != null) {
+      BigDecimal rate = order.getRestaurant().getCommissionRate() != null
+          ? order.getRestaurant().getCommissionRate()
+          : new BigDecimal("10.00");
+      BigDecimal marketplaceFee = order.getTotal().multiply(rate)
+          .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+      if (Boolean.TRUE.equals(order.getRestaurant().getMpConnected())
+          && order.getRestaurant().getMpCollectorId() != null
+          && !order.getRestaurant().getMpCollectorId().isBlank()) {
+        requestBuilder.applicationFee(marketplaceFee);
+      }
+    }
 
     if (notificationUrl != null && !notificationUrl.isBlank()) {
       requestBuilder.notificationUrl(notificationUrl);
@@ -187,6 +213,19 @@ public class PaymentService {
         .paymentMethodId(request.paymentMethodId())
         .externalReference(order.getId().toString())
         .payer(payerBuilder.build());
+
+    if (order.getRestaurant() != null) {
+      BigDecimal rate = order.getRestaurant().getCommissionRate() != null
+          ? order.getRestaurant().getCommissionRate()
+          : new BigDecimal("10.00");
+      BigDecimal marketplaceFee = order.getTotal().multiply(rate)
+          .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+      if (Boolean.TRUE.equals(order.getRestaurant().getMpConnected())
+          && order.getRestaurant().getMpCollectorId() != null
+          && !order.getRestaurant().getMpCollectorId().isBlank()) {
+        requestBuilder.applicationFee(marketplaceFee);
+      }
+    }
 
     if (request.issuerId() != null && !request.issuerId().isBlank()) {
       requestBuilder.issuerId(request.issuerId());
@@ -316,6 +355,94 @@ public class PaymentService {
     }
 
     return true;
+  }
+
+  public String getMpConnectAuthorizeUrl(UUID restaurantId, String authenticatedEmail) {
+    Restaurant restaurant = restaurantRepository.findById(restaurantId)
+        .orElseThrow(() -> new BusinessException("Restaurant not found with ID: " + restaurantId));
+
+    if (!restaurant.getOwner().getEmail().equalsIgnoreCase(authenticatedEmail)) {
+      throw new AccessDeniedException("User is not authorized to connect Mercado Pago for this restaurant");
+    }
+
+    String activeClientId = (clientId != null && !clientId.isBlank()) ? clientId : "MERCADOPAGO_CLIENT_ID";
+    return String.format(
+        "https://auth.mercadopago.com/authorization?client_id=%s&response_type=code&platform_id=mp&state=%s&redirect_uri=%s",
+        activeClientId, restaurantId, redirectUri
+    );
+  }
+
+  @Transactional
+  public AdminRestaurantResponseDTO connectMpAccount(MpConnectCallbackRequestDTO request, String authenticatedEmail) {
+    Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
+        .orElseThrow(() -> new BusinessException("Restaurant not found with ID: " + request.restaurantId()));
+
+    if (!restaurant.getOwner().getEmail().equalsIgnoreCase(authenticatedEmail)) {
+      throw new AccessDeniedException("User is not authorized to connect Mercado Pago for this restaurant");
+    }
+
+    String collectorId = (request.collectorId() != null && !request.collectorId().isBlank())
+        ? request.collectorId().trim()
+        : "TEST-COLLECTOR-" + UUID.randomUUID().toString().substring(0, 8);
+
+    restaurant.setMpConnected(true);
+    restaurant.setMpCollectorId(collectorId);
+    restaurant.setMpConnectedAt(OffsetDateTime.now());
+    Restaurant saved = restaurantRepository.save(restaurant);
+
+    log.info("Restaurant {} ({}) successfully connected Mercado Pago account with Collector ID: {}",
+        saved.getId(), saved.getTradeName(), collectorId);
+
+    return new AdminRestaurantResponseDTO(
+        saved.getId(),
+        saved.getTradeName(),
+        saved.getCnpj(),
+        saved.getPhone(),
+        saved.getOwner().getId(),
+        saved.getOwner().getName(),
+        saved.getOwner().getEmail(),
+        saved.getCommissionRate(),
+        Boolean.TRUE.equals(saved.getMpConnected()),
+        saved.getMpCollectorId(),
+        saved.getMpConnectedAt(),
+        Boolean.TRUE.equals(saved.getIsOpen()),
+        saved.getBaseDeliveryFee()
+    );
+  }
+
+  @Transactional
+  public AdminRestaurantResponseDTO disconnectMpAccount(UUID restaurantId, String authenticatedEmail) {
+    Restaurant restaurant = restaurantRepository.findById(restaurantId)
+        .orElseThrow(() -> new BusinessException("Restaurant not found with ID: " + restaurantId));
+
+    if (!restaurant.getOwner().getEmail().equalsIgnoreCase(authenticatedEmail)) {
+      throw new AccessDeniedException("User is not authorized to disconnect Mercado Pago for this restaurant");
+    }
+
+    restaurant.setMpConnected(false);
+    restaurant.setMpCollectorId(null);
+    restaurant.setMpAccessToken(null);
+    restaurant.setMpRefreshToken(null);
+    restaurant.setMpConnectedAt(null);
+    Restaurant saved = restaurantRepository.save(restaurant);
+
+    log.info("Restaurant {} ({}) disconnected Mercado Pago account", saved.getId(), saved.getTradeName());
+
+    return new AdminRestaurantResponseDTO(
+        saved.getId(),
+        saved.getTradeName(),
+        saved.getCnpj(),
+        saved.getPhone(),
+        saved.getOwner().getId(),
+        saved.getOwner().getName(),
+        saved.getOwner().getEmail(),
+        saved.getCommissionRate(),
+        Boolean.TRUE.equals(saved.getMpConnected()),
+        saved.getMpCollectorId(),
+        saved.getMpConnectedAt(),
+        Boolean.TRUE.equals(saved.getIsOpen()),
+        saved.getBaseDeliveryFee()
+    );
   }
 
   private PaymentStatus mapMpStatus(String mpStatus) {
