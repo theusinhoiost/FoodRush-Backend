@@ -57,6 +57,24 @@ public class Restaurant {
   @Column(name = "is_open", nullable = false)
   private Boolean isOpen = false;
 
+  @Column(name = "commission_rate", precision = 5, scale = 2, nullable = false)
+  private BigDecimal commissionRate = new BigDecimal("10.00");
+
+  @Column(name = "mp_collector_id", length = 100)
+  private String mpCollectorId;
+
+  @Column(name = "mp_access_token", columnDefinition = "TEXT")
+  private String mpAccessToken;
+
+  @Column(name = "mp_refresh_token", columnDefinition = "TEXT")
+  private String mpRefreshToken;
+
+  @Column(name = "mp_connected", nullable = false)
+  private Boolean mpConnected = false;
+
+  @Column(name = "mp_connected_at")
+  private java.time.OffsetDateTime mpConnectedAt;
+
   @OneToMany(
     mappedBy = "restaurant",
     cascade = CascadeType.ALL,
@@ -78,6 +96,12 @@ public class Restaurant {
     BigDecimal longitude,
     Address address,
     Boolean isOpen,
+    BigDecimal commissionRate,
+    String mpCollectorId,
+    String mpAccessToken,
+    String mpRefreshToken,
+    Boolean mpConnected,
+    java.time.OffsetDateTime mpConnectedAt,
     List<MenuItem> menuItems
   ) {
     this.id = id;
@@ -90,6 +114,12 @@ public class Restaurant {
     this.longitude = longitude;
     this.address = address;
     this.isOpen = isOpen != null ? isOpen : false;
+    this.commissionRate = commissionRate != null ? commissionRate : new BigDecimal("10.00");
+    this.mpCollectorId = mpCollectorId;
+    this.mpAccessToken = mpAccessToken;
+    this.mpRefreshToken = mpRefreshToken;
+    this.mpConnected = mpConnected != null ? mpConnected : false;
+    this.mpConnectedAt = mpConnectedAt;
     this.menuItems = menuItems != null ? menuItems : new ArrayList<>();
   }
 

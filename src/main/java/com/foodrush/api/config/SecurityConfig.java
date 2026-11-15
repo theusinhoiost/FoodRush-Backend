@@ -208,7 +208,10 @@ public class SecurityConfig {
           .hasRole("CLIENT")
           .requestMatchers(HttpMethod.PATCH, "/orders/**", "/api/v1/orders/**")
           .hasAnyRole("RESTAURANT", "COURIER", "ADMIN")
-          // 7. Qualquer outra rota exige estar autenticado
+          // 7. Gestão Superadmin
+          .requestMatchers("/admin/**", "/api/v1/admin/**")
+          .hasRole("ADMIN")
+          // 8. Qualquer outra rota exige estar autenticado
           .anyRequest()
           .authenticated()
       )

@@ -2,6 +2,8 @@ package com.foodrush.api.controller;
 
 import com.foodrush.api.dto.request.CardPaymentRequestDTO;
 import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
+import com.foodrush.api.dto.request.MpConnectCallbackRequestDTO;
+import com.foodrush.api.dto.response.AdminRestaurantResponseDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
 import com.foodrush.api.service.PaymentService;
 import jakarta.validation.Valid;
@@ -119,6 +121,51 @@ public class PaymentController {
     boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
         .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     PaymentResponseDTO response = paymentService.getPaymentByOrderId(orderId, principal.getName(), isAdmin);
+    return ResponseEntity.ok(response);
+  }
+
+  @GetMapping("/connect/authorize-url")
+  @PreAuthorize("hasAnyRole('RESTAURANT', 'ADMIN')")
+  @Operation(
+      summary = "Get Mercado Pago OAuth Authorize URL for Restaurant",
+      description = "Generates the official Mercado Pago authorization URL for a restaurant owner to connect their account for split payment.",
+      security = @SecurityRequirement(name = "bearerAuth")
+  )
+  public ResponseEntity<Map<String, String>> getMpConnectAuthorizeUrl(
+      @RequestParam UUID restaurantId,
+      Principal principal
+  ) {
+    String url = paymentService.getMpConnectAuthorizeUrl(restaurantId, principal.getName());
+    return ResponseEntity.ok(Map.of("authorizeUrl", url));
+  }
+
+  @PostMapping("/connect/callback")
+  @PreAuthorize("hasAnyRole('RESTAURANT', 'ADMIN')")
+  @Operation(
+      summary = "Mercado Pago OAuth Callback Connection",
+      description = "Connects the restaurant's Mercado Pago account using the OAuth code or collector credentials.",
+      security = @SecurityRequirement(name = "bearerAuth")
+  )
+  public ResponseEntity<AdminRestaurantResponseDTO> connectMpAccount(
+      @Valid @RequestBody MpConnectCallbackRequestDTO request,
+      Principal principal
+  ) {
+    AdminRestaurantResponseDTO response = paymentService.connectMpAccount(request, principal.getName());
+    return ResponseEntity.ok(response);
+  }
+
+  @DeleteMapping("/connect/disconnect/{restaurantId}")
+  @PreAuthorize("hasAnyRole('RESTAURANT', 'ADMIN')")
+  @Operation(
+      summary = "Disconnect Mercado Pago Account",
+      description = "Disconnects the restaurant's Mercado Pago account, reverting payments to platform fallback.",
+      security = @SecurityRequirement(name = "bearerAuth")
+  )
+  public ResponseEntity<AdminRestaurantResponseDTO> disconnectMpAccount(
+      @PathVariable UUID restaurantId,
+      Principal principal
+  ) {
+    AdminRestaurantResponseDTO response = paymentService.disconnectMpAccount(restaurantId, principal.getName());
     return ResponseEntity.ok(response);
   }
 
