@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Restaurant Role Order Placement Restriction (`service/OrderService`):**
+  - Added validation in `OrderService.create()` preventing users with role `RESTAURANT` from placing delivery orders (`Restaurant accounts cannot place orders`).
+  - Added unit test in `OrderServiceTest` verifying that `RESTAURANT` users receive a `422 BusinessException` if attempting to order.
+
+### Added
 - **Superadmin Management & Analytics (`service/AdminService`, `controller/AdminController`):**
   - Added Superadmin endpoints under `/api/v1/admin` secured with `@PreAuthorize("hasRole('ADMIN')")`.
   - Added `GET /api/v1/admin/restaurants` returning all registered restaurants, owner details, Mercado Pago Connect status, and commission rates.

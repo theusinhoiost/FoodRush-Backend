@@ -7,6 +7,7 @@ import com.foodrush.api.dto.response.OrderItemComplementResponseDTO;
 import com.foodrush.api.dto.response.OrderItemResponseDTO;
 import com.foodrush.api.dto.response.OrderResponseDTO;
 import com.foodrush.api.enums.OrderStatus;
+import com.foodrush.api.enums.RoleType;
 import com.foodrush.api.event.OrderStatusChangedEvent;
 import com.foodrush.api.exception.BusinessException;
 import com.foodrush.api.model.*;
@@ -53,6 +54,10 @@ public class OrderService {
 
     if (!Boolean.TRUE.equals(customer.getActive())) {
       throw new BusinessException("Customer account is inactive and cannot place orders");
+    }
+
+    if (customer.getRole() == RoleType.RESTAURANT) {
+      throw new BusinessException("Restaurant accounts cannot place orders");
     }
 
     // 3. Validate Restaurant & Operational Status
