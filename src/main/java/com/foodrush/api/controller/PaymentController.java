@@ -5,6 +5,7 @@ import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
 import com.foodrush.api.dto.request.MpConnectCallbackRequestDTO;
 import com.foodrush.api.dto.response.AdminRestaurantResponseDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
+import com.foodrush.api.dto.response.RestaurantResponseDTO;
 import com.foodrush.api.service.PaymentService;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -139,6 +140,21 @@ public class PaymentController {
     return ResponseEntity.ok(Map.of("authorizeUrl", url));
   }
 
+  @PostMapping("/connect/quick-connect/{restaurantId}")
+  @PreAuthorize("hasAnyRole('RESTAURANT', 'ADMIN')")
+  @Operation(
+      summary = "Quick Connect Mercado Pago Test Account (Sandbox)",
+      description = "Simulates instant connection to a test Mercado Pago collector account with 1 click for development.",
+      security = @SecurityRequirement(name = "bearerAuth")
+  )
+  public ResponseEntity<RestaurantResponseDTO> quickConnectMp(
+      @PathVariable UUID restaurantId,
+      Principal principal
+  ) {
+    RestaurantResponseDTO response = paymentService.quickConnectMpAccount(restaurantId, principal.getName());
+    return ResponseEntity.ok(response);
+  }
+
   @PostMapping("/connect/callback")
   @PreAuthorize("hasAnyRole('RESTAURANT', 'ADMIN')")
   @Operation(
@@ -146,11 +162,11 @@ public class PaymentController {
       description = "Connects the restaurant's Mercado Pago account using the OAuth code or collector credentials.",
       security = @SecurityRequirement(name = "bearerAuth")
   )
-  public ResponseEntity<AdminRestaurantResponseDTO> connectMpAccount(
+  public ResponseEntity<RestaurantResponseDTO> connectMpAccount(
       @Valid @RequestBody MpConnectCallbackRequestDTO request,
       Principal principal
   ) {
-    AdminRestaurantResponseDTO response = paymentService.connectMpAccount(request, principal.getName());
+    RestaurantResponseDTO response = paymentService.connectMpAccount(request, principal.getName());
     return ResponseEntity.ok(response);
   }
 
@@ -161,11 +177,11 @@ public class PaymentController {
       description = "Disconnects the restaurant's Mercado Pago account, reverting payments to platform fallback.",
       security = @SecurityRequirement(name = "bearerAuth")
   )
-  public ResponseEntity<AdminRestaurantResponseDTO> disconnectMpAccount(
+  public ResponseEntity<RestaurantResponseDTO> disconnectMpAccount(
       @PathVariable UUID restaurantId,
       Principal principal
   ) {
-    AdminRestaurantResponseDTO response = paymentService.disconnectMpAccount(restaurantId, principal.getName());
+    RestaurantResponseDTO response = paymentService.disconnectMpAccount(restaurantId, principal.getName());
     return ResponseEntity.ok(response);
   }
 

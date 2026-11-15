@@ -45,19 +45,40 @@ public record RestaurantResponseDTO(
     description = "Whether the restaurant is currently open for orders",
     example = "true"
   )
-  Boolean isOpen
+  Boolean isOpen,
+
+  @Schema(
+    description = "FoodRush platform commission rate in percent",
+    example = "10.00"
+  )
+  BigDecimal commissionRate,
+
+  @Schema(
+    description = "Whether the restaurant is connected to Mercado Pago for split payments",
+    example = "true"
+  )
+  Boolean mpConnected,
+
+  @Schema(
+    description = "Mercado Pago collector identifier of the restaurant partner",
+    example = "123456789"
+  )
+  String mpCollectorId
 ) implements Serializable {
   public static RestaurantResponseDTO fromEntity(Restaurant restaurant) {
     return new RestaurantResponseDTO(
       restaurant.getId(),
-      restaurant.getOwner().getId(),
+      restaurant.getOwner() != null ? restaurant.getOwner().getId() : null,
       restaurant.getTradeName(),
       restaurant.getCnpj(),
       restaurant.getBaseDeliveryFee(),
       restaurant.getLatitude(),
       restaurant.getLongitude(),
-      AddressResponseDTO.fromEntity(restaurant.getAddress()),
-      restaurant.getIsOpen()
+      restaurant.getAddress() != null ? AddressResponseDTO.fromEntity(restaurant.getAddress()) : null,
+      restaurant.getIsOpen(),
+      restaurant.getCommissionRate() != null ? restaurant.getCommissionRate() : new BigDecimal("10.00"),
+      Boolean.TRUE.equals(restaurant.getMpConnected()),
+      restaurant.getMpCollectorId()
     );
   }
 }
