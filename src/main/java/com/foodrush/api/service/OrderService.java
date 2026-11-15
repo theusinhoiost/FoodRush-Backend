@@ -279,8 +279,8 @@ public class OrderService {
     }
 
     boolean isValid = switch (from) {
-      case CREATED -> to == OrderStatus.PAID || to == OrderStatus.CANCELED;
-      case PAID -> to == OrderStatus.PREPARING || to == OrderStatus.CANCELED;
+      case CREATED -> to == OrderStatus.PAID || to == OrderStatus.CONFIRMED || to == OrderStatus.CANCELED;
+      case PAID, CONFIRMED -> to == OrderStatus.PREPARING || to == OrderStatus.CANCELED;
       case PREPARING -> to == OrderStatus.READY || to == OrderStatus.CANCELED;
       case READY -> to == OrderStatus.IN_ROUTE || to == OrderStatus.CANCELED;
       case IN_ROUTE -> to == OrderStatus.DELIVERED || to == OrderStatus.CANCELED;

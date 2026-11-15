@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Order Status Enum Alignment & Database Migration (`enums/OrderStatus`, `service/OrderService`, `db/migration/V6__fix_confirmed_order_status.sql`):**
+  - Added `CONFIRMED` to `OrderStatus` enum and exhaustive switch transition validation in `OrderService` to prevent `500 Internal Server Error` on customer orders endpoint.
+  - Added Flyway migration `V6__fix_confirmed_order_status.sql` updating any legacy seed data from `CONFIRMED` to `PAID`.
+
 ### Added
 - **Mercado Pago Checkout Transparente (Credit Card) (`service/PaymentService`, `controller/PaymentController`, `db/migration/V5__add_card_details_to_payments.sql`):**
   - Added support for Credit Card payments with tokenized cards and installments (`PaymentMethod.CREDIT_CARD`).
