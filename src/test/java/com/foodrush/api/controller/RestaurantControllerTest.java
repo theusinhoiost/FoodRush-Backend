@@ -46,7 +46,7 @@ class RestaurantControllerTest {
     return new RestaurantResponseDTO(
         id, UUID.randomUUID(), "Burger King", "48555407000133",
         new BigDecimal("5.00"), new BigDecimal("-23.550520"), new BigDecimal("-46.633309"),
-        addressDTO, false
+        addressDTO, false, new BigDecimal("10.00"), false, null
     );
   }
 

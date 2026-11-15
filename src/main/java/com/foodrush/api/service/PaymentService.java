@@ -5,6 +5,7 @@ import com.foodrush.api.dto.request.MercadoPagoWebhookRequestDTO;
 import com.foodrush.api.dto.request.MpConnectCallbackRequestDTO;
 import com.foodrush.api.dto.response.AdminRestaurantResponseDTO;
 import com.foodrush.api.dto.response.PaymentResponseDTO;
+import com.foodrush.api.dto.response.RestaurantResponseDTO;
 import com.foodrush.api.enums.OrderStatus;
 import com.foodrush.api.enums.PaymentMethod;
 import com.foodrush.api.enums.PaymentStatus;
@@ -373,7 +374,28 @@ public class PaymentService {
   }
 
   @Transactional
-  public AdminRestaurantResponseDTO connectMpAccount(MpConnectCallbackRequestDTO request, String authenticatedEmail) {
+  public RestaurantResponseDTO quickConnectMpAccount(UUID restaurantId, String authenticatedEmail) {
+    Restaurant restaurant = restaurantRepository.findById(restaurantId)
+        .orElseThrow(() -> new BusinessException("Restaurant not found with ID: " + restaurantId));
+
+    if (!restaurant.getOwner().getEmail().equalsIgnoreCase(authenticatedEmail)) {
+      throw new AccessDeniedException("User is not authorized to connect Mercado Pago for this restaurant");
+    }
+
+    String collectorId = "TEST-SELLER-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    restaurant.setMpConnected(true);
+    restaurant.setMpCollectorId(collectorId);
+    restaurant.setMpConnectedAt(OffsetDateTime.now());
+    Restaurant saved = restaurantRepository.save(restaurant);
+
+    log.info("Quick connected Mercado Pago test account for restaurant {} ({}) with Collector ID: {}",
+        saved.getId(), saved.getTradeName(), collectorId);
+
+    return RestaurantResponseDTO.fromEntity(saved);
+  }
+
+  @Transactional
+  public RestaurantResponseDTO connectMpAccount(MpConnectCallbackRequestDTO request, String authenticatedEmail) {
     Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
         .orElseThrow(() -> new BusinessException("Restaurant not found with ID: " + request.restaurantId()));
 
@@ -393,25 +415,11 @@ public class PaymentService {
     log.info("Restaurant {} ({}) successfully connected Mercado Pago account with Collector ID: {}",
         saved.getId(), saved.getTradeName(), collectorId);
 
-    return new AdminRestaurantResponseDTO(
-        saved.getId(),
-        saved.getTradeName(),
-        saved.getCnpj(),
-        saved.getPhone(),
-        saved.getOwner().getId(),
-        saved.getOwner().getName(),
-        saved.getOwner().getEmail(),
-        saved.getCommissionRate(),
-        Boolean.TRUE.equals(saved.getMpConnected()),
-        saved.getMpCollectorId(),
-        saved.getMpConnectedAt(),
-        Boolean.TRUE.equals(saved.getIsOpen()),
-        saved.getBaseDeliveryFee()
-    );
+    return RestaurantResponseDTO.fromEntity(saved);
   }
 
   @Transactional
-  public AdminRestaurantResponseDTO disconnectMpAccount(UUID restaurantId, String authenticatedEmail) {
+  public RestaurantResponseDTO disconnectMpAccount(UUID restaurantId, String authenticatedEmail) {
     Restaurant restaurant = restaurantRepository.findById(restaurantId)
         .orElseThrow(() -> new BusinessException("Restaurant not found with ID: " + restaurantId));
 
@@ -428,21 +436,7 @@ public class PaymentService {
 
     log.info("Restaurant {} ({}) disconnected Mercado Pago account", saved.getId(), saved.getTradeName());
 
-    return new AdminRestaurantResponseDTO(
-        saved.getId(),
-        saved.getTradeName(),
-        saved.getCnpj(),
-        saved.getPhone(),
-        saved.getOwner().getId(),
-        saved.getOwner().getName(),
-        saved.getOwner().getEmail(),
-        saved.getCommissionRate(),
-        Boolean.TRUE.equals(saved.getMpConnected()),
-        saved.getMpCollectorId(),
-        saved.getMpConnectedAt(),
-        Boolean.TRUE.equals(saved.getIsOpen()),
-        saved.getBaseDeliveryFee()
-    );
+    return RestaurantResponseDTO.fromEntity(saved);
   }
 
   private PaymentStatus mapMpStatus(String mpStatus) {
