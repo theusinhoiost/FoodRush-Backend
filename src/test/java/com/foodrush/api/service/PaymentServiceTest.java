@@ -46,6 +46,9 @@ class PaymentServiceTest {
   private OrderRepository orderRepository;
 
   @Mock
+  private com.foodrush.api.repository.RestaurantRepository restaurantRepository;
+
+  @Mock
   private OrderService orderService;
 
   @Mock
