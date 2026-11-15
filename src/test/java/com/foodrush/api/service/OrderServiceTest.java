@@ -283,4 +283,25 @@ class OrderServiceTest {
 
     verify(orderEventProducer, never()).publishStatusChanged(any());
   }
+
+  @Test
+  @DisplayName("Deve lançar exceção ao tentar criar pedido com usuário RESTAURANT")
+  void shouldThrowWhenRestaurantAttemptsToPlaceOrder() {
+    customer.setRole(RoleType.RESTAURANT);
+    when(userRepository.findById(customer.getId())).thenReturn(Optional.of(customer));
+
+    OrderCreateRequestDTO request = new OrderCreateRequestDTO(
+        customer.getId(),
+        restaurant.getId(),
+        null,
+        "idem-rest-order",
+        List.of(new OrderItemRequestDTO(menuItem.getId(), menuItemSize.getId(), 1, List.of()))
+    );
+
+    assertThatThrownBy(() -> orderService.create(request))
+        .isInstanceOf(BusinessException.class)
+        .hasMessageContaining("Restaurant accounts cannot place orders");
+
+    verify(orderRepository, never()).save(any());
+  }
 }
