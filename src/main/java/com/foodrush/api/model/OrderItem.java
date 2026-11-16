@@ -5,6 +5,7 @@ package com.foodrush.api.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -44,6 +45,7 @@ public class OrderItem {
     @Column(name = "total_price", precision = 10, scale = 2, nullable = false)
     private BigDecimal totalPrice;
 
+    @BatchSize(size = 50)
     @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItemComplement> complements = new ArrayList<>();
 
