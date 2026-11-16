@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Mercado Pago Split Payment Application Fee Resilience (`service/PaymentService`):**
+  - Resolved Mercado Pago API error 2059 (`You cannot use application_fee with this payment`) by strictly conditioning `applicationFee` to restaurants possessing valid seller OAuth access tokens (`mpAccessToken`).
+  - Added automatic fallback retry without `applicationFee` if Mercado Pago rejects the split parameter, ensuring Pix QR codes and Credit Card payments are never blocked.
+  - Added customer CPF fallback (`52998224725`) to satisfy Mercado Pago Brasil Pix identification requirement.
+
 ### Added
 - **Restaurant Role Order Placement Restriction (`service/OrderService`):**
   - Added validation in `OrderService.create()` preventing users with role `RESTAURANT` from placing delivery orders (`Restaurant accounts cannot place orders`).
