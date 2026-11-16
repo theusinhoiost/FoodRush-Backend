@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Hibernate MultipleBagFetchException on Order Details (`repository/OrderRepository`, `model/Order`, `model/OrderItem`):**
+  - Resolved `MultipleBagFetchException: cannot simultaneously fetch multiple bags: [com.foodrush.api.model.OrderItem.complements, com.foodrush.api.model.Order.items]` in `OrderRepository.findByIdWithDetails`.
+  - Refactored query to fetch singular `@ManyToOne` associations (`customer`, `restaurant`, `item.menuItem`, `item.size`) and a single bag (`items`).
+  - Added `@BatchSize(size = 50)` on `Order.items` and `OrderItem.complements` to eliminate N+1 queries during lazy loading of order item complements.
+
+### Fixed
 - **Mercado Pago Split Payment Application Fee Resilience (`service/PaymentService`):**
   - Resolved Mercado Pago API error 2059 (`You cannot use application_fee with this payment`) by strictly conditioning `applicationFee` to restaurants possessing valid seller OAuth access tokens (`mpAccessToken`).
   - Added automatic fallback retry without `applicationFee` if Mercado Pago rejects the split parameter, ensuring Pix QR codes and Credit Card payments are never blocked.
