@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -62,6 +63,7 @@ public class Order {
   @Column(name = "updated_at", nullable = false)
   private OffsetDateTime updatedAt;
 
+  @BatchSize(size = 50)
   @OneToMany(
     mappedBy = "order",
     cascade = CascadeType.ALL,
