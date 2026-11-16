@@ -21,6 +21,7 @@ import com.foodrush.api.repository.OrderRepository;
 import com.foodrush.api.repository.PaymentRepository;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.payment.PaymentCreateRequest;
+import com.mercadopago.exceptions.MPApiException;
 import com.mercadopago.resources.payment.PaymentPointOfInteraction;
 import com.mercadopago.resources.payment.PaymentTransactionData;
 import java.math.BigDecimal;
@@ -331,5 +332,54 @@ class PaymentServiceTest {
     assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REJECTED);
     verify(paymentRepository, times(1)).save(payment);
     verify(orderService, never()).updateStatus(any(), any());
+  }
+
+  @Test
+  @DisplayName("Should retry without application_fee when Mercado Pago returns error 2059")
+  void shouldRetryWithoutApplicationFeeWhenRejected() throws Exception {
+    when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+    restaurant.setMpConnected(true);
+    restaurant.setMpAccessToken("APP_USR-fake-seller-token");
+    restaurant.setCommissionRate(new BigDecimal("10.00"));
+
+    com.mercadopago.net.MPResponse badResponse = mock(com.mercadopago.net.MPResponse.class);
+    when(badResponse.getContent()).thenReturn("{\"message\":\"You cannot use application_fee with this payment.\"}");
+    MPApiException mpApiException = new MPApiException("Bad request", badResponse);
+
+    com.mercadopago.resources.payment.Payment mpSuccessPayment = mock(com.mercadopago.resources.payment.Payment.class);
+    when(mpSuccessPayment.getId()).thenReturn(999111L);
+    when(mpSuccessPayment.getStatus()).thenReturn("pending");
+
+    com.mercadopago.resources.payment.PaymentPointOfInteraction poi = mock(com.mercadopago.resources.payment.PaymentPointOfInteraction.class);
+    com.mercadopago.resources.payment.PaymentTransactionData tx = mock(com.mercadopago.resources.payment.PaymentTransactionData.class);
+    when(tx.getQrCode()).thenReturn("retry-pix-qr");
+    when(tx.getQrCodeBase64()).thenReturn("retry-pix-qr-base64");
+    when(poi.getTransactionData()).thenReturn(tx);
+    when(mpSuccessPayment.getPointOfInteraction()).thenReturn(poi);
+
+    when(paymentClient.create(any(PaymentCreateRequest.class), any()))
+        .thenThrow(mpApiException);
+    when(paymentClient.create(any(PaymentCreateRequest.class)))
+        .thenReturn(mpSuccessPayment);
+
+    Payment savedEntity = Payment.builder()
+        .id(UUID.randomUUID())
+        .order(order)
+        .externalId("999111")
+        .paymentMethod(PaymentMethod.PIX)
+        .status(PaymentStatus.PENDING)
+        .amount(order.getTotal())
+        .qrCode("retry-pix-qr")
+        .qrCodeBase64("retry-pix-qr-base64")
+        .build();
+    when(paymentRepository.save(any(Payment.class))).thenReturn(savedEntity);
+
+    PaymentResponseDTO response = paymentService.createPixPayment(order.getId(), customer.getEmail());
+
+    assertThat(response).isNotNull();
+    assertThat(response.qrCode()).isEqualTo("retry-pix-qr");
+    verify(paymentClient, times(1)).create(any(PaymentCreateRequest.class), any());
+    verify(paymentClient, times(1)).create(any(PaymentCreateRequest.class));
   }
 }
