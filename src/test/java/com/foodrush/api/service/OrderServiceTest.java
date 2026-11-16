@@ -304,4 +304,91 @@ class OrderServiceTest {
 
     verify(orderRepository, never()).save(any());
   }
+
+  @Test
+  @DisplayName("Deve lançar exceção quando complemento obrigatório do grupo não for selecionado")
+  void shouldThrowWhenMandatoryComplementIsMissing() {
+    ComplementGroup sauceGroup = ComplementGroup.builder()
+        .id(UUID.randomUUID())
+        .menuItem(menuItem)
+        .name("Escolha seu Molho")
+        .required(true)
+        .minQuantity(1)
+        .maxQuantity(2)
+        .build();
+
+    menuItem.setComplementGroups(List.of(sauceGroup));
+
+    when(orderRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+    when(userRepository.findById(customer.getId())).thenReturn(Optional.of(customer));
+    when(restaurantRepository.findById(restaurant.getId())).thenReturn(Optional.of(restaurant));
+    when(menuItemRepository.findById(menuItem.getId())).thenReturn(Optional.of(menuItem));
+    when(menuItemSizeRepository.findByIdWithPessimisticLock(menuItemSize.getId())).thenReturn(Optional.of(menuItemSize));
+
+    // Pedido enviado SEM complementos
+    OrderCreateRequestDTO request = new OrderCreateRequestDTO(
+        customer.getId(),
+        restaurant.getId(),
+        null,
+        "idem-missing-comp",
+        List.of(new OrderItemRequestDTO(menuItem.getId(), menuItemSize.getId(), 1, List.of()))
+    );
+
+    assertThatThrownBy(() -> orderService.create(request))
+        .isInstanceOf(BusinessException.class)
+        .hasMessageContaining("requires at least 1 option(s) for complement group 'Escolha seu Molho'");
+
+    verify(orderRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("Deve permitir pedido quando complemento obrigatório do grupo for fornecido")
+  void shouldCreateOrderWhenMandatoryComplementIsProvided() {
+    ComplementGroup sauceGroup = ComplementGroup.builder()
+        .id(UUID.randomUUID())
+        .menuItem(menuItem)
+        .name("Escolha seu Molho")
+        .required(true)
+        .minQuantity(1)
+        .maxQuantity(2)
+        .build();
+
+    menuItem.setComplementGroups(List.of(sauceGroup));
+
+    ComplementItem sauceItem = ComplementItem.builder()
+        .id(UUID.randomUUID())
+        .group(sauceGroup)
+        .name("Maionese Verde da Casa")
+        .price(BigDecimal.ZERO)
+        .available(true)
+        .build();
+
+    when(orderRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+    when(userRepository.findById(customer.getId())).thenReturn(Optional.of(customer));
+    when(restaurantRepository.findById(restaurant.getId())).thenReturn(Optional.of(restaurant));
+    when(menuItemRepository.findById(menuItem.getId())).thenReturn(Optional.of(menuItem));
+    when(menuItemSizeRepository.findByIdWithPessimisticLock(menuItemSize.getId())).thenReturn(Optional.of(menuItemSize));
+    when(complementItemRepository.findById(sauceItem.getId())).thenReturn(Optional.of(sauceItem));
+
+    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+      Order saved = invocation.getArgument(0);
+      saved.setId(UUID.randomUUID());
+      return saved;
+    });
+
+    OrderItemComplementRequestDTO compDTO = new OrderItemComplementRequestDTO(sauceItem.getId(), 1);
+    OrderCreateRequestDTO request = new OrderCreateRequestDTO(
+        customer.getId(),
+        restaurant.getId(),
+        null,
+        "idem-valid-comp",
+        List.of(new OrderItemRequestDTO(menuItem.getId(), menuItemSize.getId(), 1, List.of(compDTO)))
+    );
+
+    OrderResponseDTO result = orderService.create(request);
+
+    assertThat(result).isNotNull();
+    assertThat(result.status()).isEqualTo(OrderStatus.CREATED);
+    verify(orderRepository).save(any(Order.class));
+  }
 }

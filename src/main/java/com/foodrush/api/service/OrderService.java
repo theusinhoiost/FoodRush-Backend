@@ -16,7 +16,9 @@ import com.foodrush.api.repository.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -162,9 +164,10 @@ public class OrderService {
         unitPrice = menuItem.getBasePrice();
       }
 
-      // Calculate complements
+      // Calculate complements and validate complement groups
       BigDecimal complementsSubtotal = BigDecimal.ZERO;
       List<OrderItemComplement> complementEntities = new ArrayList<>();
+      Map<UUID, Integer> selectedQtyByGroup = new HashMap<>();
 
       if (itemDTO.complements() != null) {
         for (OrderItemComplementRequestDTO compDTO : itemDTO.complements()) {
@@ -175,8 +178,20 @@ public class OrderService {
             throw new BusinessException("Complement '" + complementItem.getName() + "' is currently unavailable");
           }
 
+          if (complementItem.getGroup() != null && complementItem.getGroup().getMenuItem() != null) {
+            if (!complementItem.getGroup().getMenuItem().getId().equals(menuItem.getId())) {
+              throw new BusinessException(String.format("Complement '%s' does not belong to menu item '%s'",
+                  complementItem.getName(), menuItem.getName()));
+            }
+          }
+
           int compQty = compDTO.quantity() != null && compDTO.quantity() > 0 ? compDTO.quantity() : 1;
           BigDecimal compPrice = complementItem.getPrice() != null ? complementItem.getPrice() : BigDecimal.ZERO;
+
+          if (complementItem.getGroup() != null) {
+            UUID groupId = complementItem.getGroup().getId();
+            selectedQtyByGroup.put(groupId, selectedQtyByGroup.getOrDefault(groupId, 0) + compQty);
+          }
 
           complementsSubtotal = complementsSubtotal.add(compPrice.multiply(BigDecimal.valueOf(compQty)));
 
@@ -188,6 +203,28 @@ public class OrderService {
               .build();
 
           complementEntities.add(complement);
+        }
+      }
+
+      // Validate required and max complement group constraints
+      if (menuItem.getComplementGroups() != null) {
+        for (ComplementGroup group : menuItem.getComplementGroups()) {
+          int selectedCount = selectedQtyByGroup.getOrDefault(group.getId(), 0);
+          int minRequired = Boolean.TRUE.equals(group.getRequired())
+              ? Math.max(1, group.getMinQuantity() != null ? group.getMinQuantity() : 1)
+              : (group.getMinQuantity() != null ? group.getMinQuantity() : 0);
+
+          if (selectedCount < minRequired) {
+            throw new BusinessException(String.format(
+                "Menu item '%s' requires at least %d option(s) for complement group '%s' (selected: %d)",
+                menuItem.getName(), minRequired, group.getName(), selectedCount));
+          }
+
+          if (group.getMaxQuantity() != null && group.getMaxQuantity() > 0 && selectedCount > group.getMaxQuantity()) {
+            throw new BusinessException(String.format(
+                "Menu item '%s' allows at most %d option(s) for complement group '%s' (selected: %d)",
+                menuItem.getName(), group.getMaxQuantity(), group.getName(), selectedCount));
+          }
         }
       }
 

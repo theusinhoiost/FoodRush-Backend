@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Mandatory Complement Groups Validation (`service/OrderService`):**
+  - Added strict validation in `OrderService.create()` verifying that mandatory complement groups (`required = true` or `minQuantity > 0`) have sufficient selections before placing an order.
+  - Enforced `maxQuantity` upper limits per complement group to prevent exceeding maximum allowed add-ons.
+  - Added validation ensuring that selected complements belong to the specified menu item.
+  - Added unit test cases in `OrderServiceTest` confirming that orders without mandatory complements are rejected with a 422 BusinessException.
+
 - **Hibernate MultipleBagFetchException on Order Details (`repository/OrderRepository`, `model/Order`, `model/OrderItem`):**
   - Resolved `MultipleBagFetchException: cannot simultaneously fetch multiple bags: [com.foodrush.api.model.OrderItem.complements, com.foodrush.api.model.Order.items]` in `OrderRepository.findByIdWithDetails`.
   - Refactored query to fetch singular `@ManyToOne` associations (`customer`, `restaurant`, `item.menuItem`, `item.size`) and a single bag (`items`).
